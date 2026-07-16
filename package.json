@@ -1,6 +1,6 @@
 {
   "name": "dustline",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "DUSTLINE — 1v1 island top-down shooter with Steam P2P",
   "scripts": {
     "dev": "vite",
