@@ -670,112 +670,200 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    /* ── Matchmaking ── */
-    .mm-card {
-      width: 420px;
+    /* ── Lobby system ── */
+    .lobby-shell {
+      width: min(480px, 94%);
       background: var(--panel);
       border: 1px solid var(--line);
-      padding: 22px 22px 18px;
+      display: flex;
+      flex-direction: column;
     }
-    .mm-card .page-kicker { margin-bottom: 2px; }
-    .mm-card h2 {
+    .lobby-top {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .lobby-top h2 {
       font-size: 20px;
       font-weight: 800;
-      margin-bottom: 6px;
       color: #ebe6da;
+      margin: 0 0 4px;
+    }
+    .lobby-phase-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .lobby-phase {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--rust);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .lobby-phase[data-phase="searching"] { color: var(--warn); }
+    .lobby-phase[data-phase="hosting"] { color: var(--p1); }
+    .lobby-phase[data-phase="joining"] { color: var(--p2); }
+    .lobby-phase[data-phase="linked"] { color: #8ab870; }
+    .lobby-phase[data-phase="starting"],
+    .lobby-phase[data-phase="in_match"] { color: var(--rust); }
+    .lobby-phase[data-phase="error"] { color: #d07060; }
+    .lobby-format {
+      font-size: 11px;
+      color: var(--mute);
+      font-family: var(--mono);
     }
 
-    .lobby-format {
+    .lobby-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+    .lobby-step {
+      padding: 8px 6px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--faint);
+      border-right: 1px solid var(--line);
+      background: var(--bg);
+    }
+    .lobby-step:last-child { border-right: none; }
+    .lobby-step.on { color: var(--ink); background: #161a16; }
+    .lobby-step.done { color: #6a9a58; }
+    .lobby-step .n {
+      display: block;
       font-size: 12px;
-      color: var(--mute);
-      margin-bottom: 14px;
-      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .lobby-body {
+      padding: 16px 18px;
     }
 
     .lobby-slots {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
     .lobby-slot {
       border: 1px solid var(--line);
       background: var(--bg);
-      padding: 12px 10px;
-      min-height: 56px;
+      padding: 12px 12px 10px;
+      min-height: 72px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
-      justify-content: center;
+      gap: 4px;
     }
-    .lobby-slot .ls-label {
+    .lobby-slot .ls-tag {
       font-family: var(--mono);
       font-size: 10px;
       font-weight: 700;
       color: var(--mute);
     }
-    .lobby-slot .ls-state {
-      font-size: 13px;
+    .lobby-slot.p1 .ls-tag { color: var(--p1); }
+    .lobby-slot.p2 .ls-tag { color: var(--p2); }
+    .lobby-slot .ls-name {
+      font-size: 14px;
       font-weight: 700;
       color: var(--mute);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lobby-slot .ls-state {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--faint);
     }
     .lobby-slot.filled {
-      border-color: #3a5a30;
-      background: #101810;
+      border-color: var(--line-hi);
+      background: #121612;
     }
+    .lobby-slot.filled .ls-name { color: var(--ink); }
     .lobby-slot.filled .ls-state { color: #8ab870; }
-    .lobby-slot.filled.ready {
-      border-color: var(--rust-dim);
-      background: #1a1410;
+    .lobby-slot.empty .ls-name { color: var(--faint); font-weight: 600; }
+    .lobby-slot.host-you {
+      box-shadow: inset 3px 0 0 var(--p1);
     }
-    .lobby-slot.filled.ready .ls-state { color: #e0a060; }
+    .lobby-slot.you-p2 {
+      box-shadow: inset 3px 0 0 var(--p2);
+    }
 
-    .search-pulse {
+    .lobby-scan {
       height: 2px;
       background: var(--line);
-      margin: 0 0 14px;
+      margin: 0 0 12px;
       overflow: hidden;
       position: relative;
     }
-    .search-pulse::after {
+    .lobby-scan.active::after {
       content: "";
       position: absolute;
       top: 0; bottom: 0;
-      left: -30%;
-      width: 30%;
+      left: -25%;
+      width: 25%;
       background: var(--rust);
-      animation: scan 1.4s linear infinite;
+      animation: scan 1.2s linear infinite;
     }
-    @keyframes scan {
-      to { left: 100%; }
-    }
+    @keyframes scan { to { left: 100%; } }
 
     #lobbyInfo {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--ink);
       margin-bottom: 4px;
+      min-height: 20px;
     }
     #lobbyStatus {
       font-family: var(--mono);
       font-size: 11px;
-      color: var(--ok);
-      min-height: 18px;
+      color: var(--mute);
+      min-height: 16px;
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+    #lobbyMeta {
+      font-size: 11px;
+      color: var(--mute);
+      font-family: var(--mono);
+      margin-bottom: 0;
+    }
+
+    .lobby-id-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--faint);
       margin-bottom: 12px;
+      gap: 8px;
+    }
+    .lobby-id-row b {
+      color: var(--mute);
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .queue-log {
       width: 100%;
-      max-height: 130px;
+      max-height: 88px;
       overflow-y: auto;
       text-align: left;
       background: var(--bg);
       border: 1px solid var(--line);
-      padding: 8px 10px;
-      margin-bottom: 14px;
+      padding: 6px 8px;
+      margin-bottom: 12px;
       font-family: var(--mono);
-      font-size: 11px;
-      line-height: 1.4;
+      font-size: 10px;
+      line-height: 1.35;
       color: var(--mute);
     }
     .queue-log .log-line { margin: 1px 0; word-break: break-word; }
@@ -789,10 +877,15 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      padding: 0 18px 16px;
     }
     .lobby-actions .menu-btn {
       width: 100%;
       text-align: center;
+    }
+    .lobby-actions .menu-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     /* ── HUD ── */
@@ -1377,12 +1470,8 @@
             </div>
             <div class="mm-loadout-sum" id="mmLoadoutSum" title="Open Loadout to change">
               <div class="mm-loadout-sum-row">
-                <span class="mm-ls-label">P1</span>
+                <span class="mm-ls-label">YOU</span>
                 <span class="mm-ls-val" id="mmSumP1">AR · Default</span>
-              </div>
-              <div class="mm-loadout-sum-row">
-                <span class="mm-ls-label">P2</span>
-                <span class="mm-ls-val" id="mmSumP2">SMG · Default</span>
               </div>
               <div class="mm-loadout-sum-dust">
                 <span>DUST</span>
@@ -1398,9 +1487,6 @@
               </button>
               <button class="menu-btn" id="btnVsBot" type="button">
                 Vs Bot <span class="btn-hint">Solo</span>
-              </button>
-              <button class="menu-btn" id="btnLocalPlay" type="button">
-                Local Duel <span class="btn-hint">2P</span>
               </button>
             </div>
             <div class="mm-utils">
@@ -1422,7 +1508,7 @@
           <div>
             <div class="page-kicker">main menu</div>
             <h2>Loadout</h2>
-            <p class="section-sub">Weapon, skin, hat for both seats. Saved for every mode.</p>
+            <p class="section-sub">Your weapon, skin and hat. Used for online and vs bot.</p>
           </div>
           <div class="dust-chip" title="Earn Dust by winning">
             <span>DUST</span>
@@ -1432,25 +1518,16 @@
         <div class="loadout-columns" id="loadoutColumns">
           <div class="loadout-col" id="loadoutP1">
             <div class="loadout-col-head">
-              <h3>PLAYER 1</h3>
-              <span class="loadout-badge">online · local · bot</span>
+              <h3>YOU</h3>
+              <span class="loadout-badge">online · bot</span>
             </div>
             <div class="weapon-cards" data-player="0"></div>
             <div class="skin-picker" data-player="0"></div>
             <div class="hat-picker" data-player="0"></div>
           </div>
-          <div class="loadout-col" id="loadoutP2">
-            <div class="loadout-col-head">
-              <h3>PLAYER 2</h3>
-              <span class="loadout-badge">local duel</span>
-            </div>
-            <div class="weapon-cards" data-player="1"></div>
-            <div class="skin-picker" data-player="1"></div>
-            <div class="hat-picker" data-player="1"></div>
-          </div>
         </div>
         <p class="loadout-note">
-          Changes save automatically. P1 is used for online / bot. Both for local 2P.
+          Changes save automatically. Opponent loadout is set by matchmaking or the bot.
         </p>
         <div class="loadout-actions">
           <button class="menu-btn primary" id="btnLoadoutDone">Done</button>
@@ -1460,27 +1537,55 @@
       </div>
     </div>
 
-    <!-- MATCHMAKING -->
+    <!-- LOBBY -->
     <div id="lobbyScreen" class="screen">
       <div class="screen-bg"></div>
       <div class="screen-content">
-        <div class="mm-card">
-          <div class="page-kicker">queue</div>
-          <h2>Matchmaking</h2>
-          <p class="lobby-format" id="lobbyMeta">Waiting… (0/2) · Best of 5</p>
-          <div class="lobby-slots" id="lobbySlots" aria-live="polite">
-            <div class="lobby-slot empty"><span class="ls-label">P1</span><span class="ls-state">—</span></div>
-            <div class="lobby-slot empty"><span class="ls-label">P2</span><span class="ls-state">—</span></div>
+        <div class="lobby-shell">
+          <div class="lobby-top">
+            <div class="page-kicker">online</div>
+            <h2>Lobby</h2>
+            <div class="lobby-phase-row">
+              <span class="lobby-phase" id="lobbyPhase" data-phase="searching">Searching</span>
+              <span class="lobby-format" id="lobbyMeta">Best of 5 · first to 3</span>
+            </div>
           </div>
-          <div class="search-pulse" aria-hidden="true"></div>
-          <p id="lobbyInfo">Searching…</p>
-          <p id="lobbyStatus"></p>
-          <div class="queue-log" id="queueLog" aria-live="polite"></div>
+
+          <div class="lobby-steps" id="lobbySteps" aria-hidden="true">
+            <div class="lobby-step" data-step="search"><span class="n">1</span>Search</div>
+            <div class="lobby-step" data-step="lobby"><span class="n">2</span>Lobby</div>
+            <div class="lobby-step" data-step="link"><span class="n">3</span>Link</div>
+            <div class="lobby-step" data-step="start"><span class="n">4</span>Start</div>
+          </div>
+
+          <div class="lobby-body">
+            <div class="lobby-slots" id="lobbySlots" aria-live="polite">
+              <div class="lobby-slot p1 empty" id="slotP1">
+                <span class="ls-tag">P1 · HOST</span>
+                <span class="ls-name">—</span>
+                <span class="ls-state">empty</span>
+              </div>
+              <div class="lobby-slot p2 empty" id="slotP2">
+                <span class="ls-tag">P2 · GUEST</span>
+                <span class="ls-name">—</span>
+                <span class="ls-state">empty</span>
+              </div>
+            </div>
+            <div class="lobby-scan" id="lobbyScan" aria-hidden="true"></div>
+            <p id="lobbyInfo">Connecting…</p>
+            <p id="lobbyStatus"></p>
+            <div class="lobby-id-row">
+              <span>LOBBY</span>
+              <b id="lobbyIdLabel">—</b>
+            </div>
+            <div class="queue-log" id="queueLog" aria-live="polite"></div>
+          </div>
+
           <div class="lobby-actions">
-            <button class="menu-btn primary" id="btnInviteFriends" type="button">
+            <button class="menu-btn primary" id="btnInviteFriends" type="button" disabled>
               Invite Friend <span class="btn-hint">Steam</span>
             </button>
-            <button class="menu-btn ghost" id="btnLeaveLobby" type="button">Cancel</button>
+            <button class="menu-btn ghost" id="btnLeaveLobby" type="button">Leave</button>
           </div>
         </div>
       </div>
@@ -1614,22 +1719,13 @@
         <h2 style="text-align:left;margin-bottom:4px;">Controls</h2>
         <div class="controls-grid">
           <div class="control-panel">
-            <h3>KEYBOARD P1</h3>
+            <h3>KEYBOARD</h3>
             <div class="control-item"><span>Move</span><span class="control-key">WASD</span></div>
             <div class="control-item"><span>Aim / Fire</span><span class="control-key">Mouse / LMB</span></div>
             <div class="control-item"><span>Switch</span><span class="control-key">Q</span></div>
             <div class="control-item"><span>Reload</span><span class="control-key">R</span></div>
             <div class="control-item"><span>Dash</span><span class="control-key">Shift</span></div>
             <div class="control-item"><span>Grenade</span><span class="control-key">G / RMB</span></div>
-          </div>
-          <div class="control-panel">
-            <h3>KEYBOARD P2</h3>
-            <div class="control-item"><span>Move / Aim</span><span class="control-key">Arrows</span></div>
-            <div class="control-item"><span>Fire</span><span class="control-key">Enter</span></div>
-            <div class="control-item"><span>Switch</span><span class="control-key">RShift</span></div>
-            <div class="control-item"><span>Reload</span><span class="control-key">RCtrl</span></div>
-            <div class="control-item"><span>Dash</span><span class="control-key">M</span></div>
-            <div class="control-item"><span>Grenade</span><span class="control-key">. / N</span></div>
           </div>
           <div class="control-panel wide">
             <h3>CONTROLLER</h3>
@@ -1642,7 +1738,6 @@
             <div class="control-item"><span>Switch</span><span class="control-key">X · LB</span></div>
             <div class="control-item"><span>Pause</span><span class="control-key">Start</span></div>
             <div class="control-item"><span>Menus</span><span class="control-key">D-Pad · A · B</span></div>
-            <div class="control-item"><span>Local 2P</span><span class="control-key">Pad1 = P1 · Pad2 = P2</span></div>
           </div>
           <div class="control-panel wide">
             <h3>GENERAL</h3>

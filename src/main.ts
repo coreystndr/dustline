@@ -4,7 +4,6 @@ import { GameState, SoundEvent } from './types';
 import {
   initInput,
   getPlayer1Input,
-  getPlayer2Input,
   getOnlineInput,
   isPausePressed,
   pollGamepads,
@@ -32,11 +31,12 @@ import {
   isPaused,
   updateLobbyStatus,
   updateLobbyInfo,
-  updateLobbyRoster,
+  applyLobbyState,
   clearQueueLog,
   appendQueueLog,
   renderUpdateOverlay,
   notifyDustChanged,
+  type LobbyStateView,
 } from './ui';
 import { soundSystem } from './sound';
 import { LocalGameEngine } from './engine';
@@ -85,7 +85,6 @@ let isLocalPlay = false;
 let isOnline = false;
 let isBotMatch = false;
 let localEngine: LocalGameEngine | null = null;
-let p2LastAim = Math.PI;
 let botSimTimer: number | null = null;
 let matchTimeAccum = 0;
 
@@ -220,13 +219,11 @@ function setupEvents(): void {
       loadouts: [WeaponType, WeaponType];
       skins?: [SkinId, SkinId];
       hats?: [HatId, HatId];
-      mode: 'local' | 'online' | 'bot';
+      mode: 'online' | 'bot';
     };
     const skins = detail.skins ?? [DEFAULT_SKIN, DEFAULT_SKIN];
     const hats = detail.hats ?? [DEFAULT_HAT, DEFAULT_HAT];
-    if (detail.mode === 'local') {
-      startLocalWithLoadout(detail.loadouts, skins, hats);
-    } else if (detail.mode === 'bot') {
+    if (detail.mode === 'bot') {
       void startBotMatchmakingSim(detail.loadouts, skins, hats);
     } else {
       void handleFindMatch(detail.loadouts[0], skins[0], hats[0]);
@@ -248,13 +245,12 @@ function setupEvents(): void {
       handleGameStateUpdate(state);
     });
 
+    tauriListen('lobby_state', (payload) => {
+      applyLobbyState(payload.payload as LobbyStateView);
+    });
     tauriListen('lobby_roster', (payload) => {
-      const data = payload.payload as {
-        members?: number;
-        ready?: boolean;
-        max_rounds?: number;
-      };
-      updateLobbyRoster(data.members ?? 1, !!data.ready, data.max_rounds ?? 5);
+      // Legacy + enriched roster from backend
+      applyLobbyState(payload.payload as LobbyStateView);
     });
 
     tauriListen('weapon_fired', (payload) => {
@@ -336,12 +332,13 @@ function setupEvents(): void {
     tauriListen('steam_status', (payload) => {
       const msg = String(payload.payload);
       updateLobbyStatus(msg);
-      appendQueueLog(msg, 'info');
-      // Enable invite once lobby id appears in status
-      const inv = document.getElementById('btnInviteFriends') as HTMLButtonElement | null;
-      if (inv && /lobby\s+\d+/i.test(msg)) {
-        inv.disabled = false;
-        inv.style.opacity = '1';
+      // Quiet log: only notable transitions (not every poll tick)
+      if (
+        /joined|created|merged|starting|failed|error|invite|alone|opponent|match live|hosting|searching for/i.test(
+          msg
+        )
+      ) {
+        appendQueueLog(msg, /fail|error/i.test(msg) ? 'err' : /start|live|ready/i.test(msg) ? 'ok' : 'info');
       }
     });
     tauriListen('opponent_left', () => {
@@ -486,34 +483,7 @@ function applyPredictionToState(state: GameState): GameState {
   return { ...state, players };
 }
 
-function startLocalWithLoadout(
-  loadouts: [WeaponType, WeaponType],
-  skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN],
-  hats: [HatId, HatId] = [DEFAULT_HAT, DEFAULT_HAT]
-): void {
-  cancelBotSim();
-  resetCombatFx();
-  isLocalPlay = true;
-  isOnline = false;
-  isBotMatch = false;
-  localPlayerId = 0;
-  localEngine = new LocalGameEngine();
-  localEngine.setLoadouts(loadouts[0], loadouts[1]);
-  localEngine.setSkins(skins[0], skins[1]);
-  localEngine.setHats(hats[0], hats[1]);
-  localEngine.setFeedbackFocus(null); // both players local
-  localEngine.resetMatch();
-  lastRoundState = '';
-  matchTimeAccum = 0;
-  setCameraFollow(null); // midpoint cam for couch 1v1
-  switchScreen('game');
-  isGameRunning = true;
-  void ensureFullscreen(true);
-  fitAppToViewport();
-  soundSystem.play('round_start');
-}
-
-/** Simulated matchmaking + bot opponent (solo debug). */
+/** Simulated matchmaking + bot opponent (solo). */
 async function startBotMatchmakingSim(
   loadouts: [WeaponType, WeaponType],
   skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN],
@@ -529,18 +499,83 @@ async function startBotMatchmakingSim(
 
   switchScreen('lobby');
   clearQueueLog();
-  updateLobbyInfo('Solo debug queue…');
-  updateLobbyStatus('Simulating matchmaking');
+  applyLobbyState({
+    phase: 'searching',
+    members: 0,
+    status: 'Simulating matchmaking',
+    max_rounds: 5,
+    local_name: 'You',
+  });
   appendQueueLog('Debug queue started (no Steam needed)', 'info');
   appendQueueLog(`Your loadout: ${loadouts[0]} (+ Pistol)`, 'info');
 
-  const steps: Array<{ ms: number; info: string; status: string; level: 'info' | 'ok' | 'warn' }> = [
-    { ms: 400, info: 'Searching open lobbies…', status: 'request_lobby_list', level: 'info' },
-    { ms: 900, info: 'No open DUSTLINE lobby found', status: '0 results', level: 'warn' },
-    { ms: 1300, info: 'Creating public waiting lobby…', status: 'create_lobby', level: 'info' },
-    { ms: 1800, info: 'Lobby open — waiting for opponent (1/2)', status: 'status=waiting', level: 'info' },
-    { ms: 2600, info: 'Fake opponent joined the lobby', status: 'members=2', level: 'ok' },
-    { ms: 3100, info: 'Match found — starting duel vs Bot', status: 'Player 1 vs BOT', level: 'ok' },
+  const steps: Array<{
+    ms: number;
+    info: string;
+    level: 'info' | 'ok' | 'warn';
+    lobby: LobbyStateView;
+  }> = [
+    {
+      ms: 400,
+      info: 'Searching…',
+      level: 'info',
+      lobby: { phase: 'searching', members: 0, local_name: 'You', status: 'Searching open lobbies…' },
+    },
+    {
+      ms: 900,
+      info: 'No open lobby',
+      level: 'warn',
+      lobby: { phase: 'searching', members: 0, local_name: 'You', status: 'No open lobby — will host' },
+    },
+    {
+      ms: 1300,
+      info: 'Creating lobby…',
+      level: 'info',
+      lobby: { phase: 'hosting', members: 1, is_host: true, local_name: 'You', status: 'Creating lobby…', can_invite: false },
+    },
+    {
+      ms: 1800,
+      info: 'Hosting (1/2)',
+      level: 'info',
+      lobby: {
+        phase: 'hosting',
+        members: 1,
+        is_host: true,
+        local_name: 'You',
+        lobby_id: 480001,
+        status: 'Lobby open — waiting',
+        can_invite: true,
+      },
+    },
+    {
+      ms: 2600,
+      info: 'Opponent joined',
+      level: 'ok',
+      lobby: {
+        phase: 'linked',
+        members: 2,
+        is_host: true,
+        local_name: 'You',
+        peer_name: 'BOT',
+        peer_ready: true,
+        lobby_id: 480001,
+        status: 'Linked · starting…',
+      },
+    },
+    {
+      ms: 3100,
+      info: 'Starting vs Bot',
+      level: 'ok',
+      lobby: {
+        phase: 'starting',
+        members: 2,
+        is_host: true,
+        local_name: 'You',
+        peer_name: 'BOT',
+        peer_ready: true,
+        status: 'Match starting',
+      },
+    },
   ];
 
   let cancelled = false;
@@ -553,8 +588,7 @@ async function startBotMatchmakingSim(
       appendQueueLog('Queue cancelled', 'warn');
       return;
     }
-    updateLobbyInfo(step.info);
-    updateLobbyStatus(step.status);
+    applyLobbyState(step.lobby);
     appendQueueLog(step.info, step.level);
   }
 
@@ -640,45 +674,45 @@ async function handleFindMatch(
   pendingOnlineLoadout = { primary, skin, hat };
   switchScreen('lobby');
   clearQueueLog();
-  updateLobbyInfo('Searching for opponent…');
-  updateLobbyStatus('Connecting to Steam matchmaking…');
-  updateLobbyRoster(0, false, 5);
-  appendQueueLog('Steam matchmaking started', 'info');
-  appendQueueLog('Format: Best of 5 (first to 3) · wait for 2 players', 'info');
+  applyLobbyState({
+    phase: 'searching',
+    members: 0,
+    is_host: false,
+    status: 'Connecting to Steam…',
+    max_rounds: 5,
+    can_invite: false,
+  });
+  appendQueueLog('Queue started · Best of 5', 'info');
+  appendQueueLog(`Loadout ${primary} · ${skin} · ${hat}`, 'ok');
   setCameraFollow(localPlayerId);
 
-  const inv = document.getElementById('btnInviteFriends') as HTMLButtonElement | null;
-  if (inv) {
-    inv.disabled = true;
-    inv.style.opacity = '0.45';
-  }
-
   if (!tauriInvoke) {
-    updateLobbyInfo('Steam app required — use “Test vs Bot” for solo.');
-    updateLobbyStatus('No Tauri / Steam runtime');
-    appendQueueLog('Browser mode: Steam P2P unavailable', 'err');
-    appendQueueLog('Tip: click Test vs Bot on the main menu', 'warn');
+    applyLobbyState({
+      phase: 'error',
+      members: 0,
+      status: 'Steam app required',
+      can_invite: false,
+    });
+    updateLobbyInfo('Steam required — use Vs Bot for solo.');
+    appendQueueLog('Browser mode: no Steam P2P', 'err');
     return;
   }
 
   try {
     await tauriInvoke('set_loadout', { primary, skin, hat });
-    appendQueueLog(`Loadout locked: ${primary} · ${skin} · ${hat}`, 'ok');
-    appendQueueLog('Calling steam_find_match…', 'info');
-    appendQueueLog('Need: Steam running + logged in (AppID 480 Spacewar)', 'info');
     const result = await tauriInvoke('steam_find_match');
     const msg = String(result);
     updateLobbyStatus(msg);
-    updateLobbyInfo('In queue — invite a friend or wait for auto-match (2/2).');
     appendQueueLog(msg, 'ok');
-    appendQueueLog('Searching worldwide lobbies + waiting for opponent…', 'info');
-    appendQueueLog('Tip: Invite Friend opens Steam once a lobby id appears', 'info');
-    appendQueueLog('Keep this screen open. Cancel aborts the queue.', 'warn');
   } catch (e) {
-    updateLobbyStatus('Matchmaking failed');
+    applyLobbyState({
+      phase: 'error',
+      members: 0,
+      status: String(e),
+      can_invite: false,
+    });
     updateLobbyInfo(String(e));
     appendQueueLog(String(e), 'err');
-    appendQueueLog('Tip: Start Steam, stay online, relaunch DUSTLINE — or use Test vs Bot', 'warn');
   }
 }
 
@@ -947,16 +981,7 @@ function gameLoop(timestamp: number): void {
         const p1 = localEngine.players[0];
         const c1 = p1.getCenter();
         const p1Input = getPlayer1Input(c1.x, c1.y);
-
-        let p2Input;
-        if (isBotMatch) {
-          p2Input = getBotInput(localEngine, 1, matchTimeAccum);
-        } else {
-          const p2 = localEngine.players[1];
-          const c2 = p2.getCenter();
-          p2Input = getPlayer2Input(c2.x, c2.y, p2LastAim);
-          p2LastAim = p2Input.aimAngle;
-        }
+        const p2Input = getBotInput(localEngine, 1, matchTimeAccum);
 
         localEngine.update(deltaTime, p1Input, p2Input);
         setParticles(localEngine.getParticles());

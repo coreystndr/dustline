@@ -15,7 +15,7 @@ Or browser-only (no Steam / no updater):
 npm run dev
 ```
 
-**Test vs Bot** = solo debug with fake matchmaking.  
+**Vs Bot** = solo with fake matchmaking.  
 **Find Match** = real Steam P2P (two accounts, Steam running).
 
 ## Releases (GitHub = source of truth)
@@ -35,14 +35,14 @@ Details: [UPDATE.md](./UPDATE.md)
 
 ## Controls
 
-| Action | P1 | P2 |
-|--------|----|----|
-| Move | WASD | Arrows |
-| Aim / shoot | Mouse / LMB | Enter |
-| Grenade | G / RMB | . / N |
-| Switch / reload / dash | Q · R · Shift | RShift · RCtrl · M |
-| Fullscreen | F11 | |
-| Pause | Esc | |
+| Action | Keys |
+|--------|------|
+| Move | WASD |
+| Aim / shoot | Mouse / LMB |
+| Grenade | G / RMB |
+| Switch / reload / dash | Q · R · Shift |
+| Fullscreen | F11 |
+| Pause | Esc |
 
 ## Project layout
 

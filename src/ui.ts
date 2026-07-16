@@ -35,7 +35,7 @@ let selectedLoadouts: [WeaponType, WeaponType] = ['AR', 'SMG'];
 let selectedSkins: [SkinId, SkinId] = loadStoredSkins();
 let selectedHats: [HatId, HatId] = loadStoredHats();
 let ownedHats = loadOwnedHats();
-let loadoutMode: 'local' | 'online' | 'bot' = 'local';
+let loadoutMode: 'online' | 'bot' = 'online';
 
 /** Gamepad/keyboard focus index into current focusables list */
 let menuFocusIdx = 0;
@@ -58,7 +58,6 @@ export function initUI(): void {
   screens.loadout = document.getElementById('loadoutScreen')!;
 
   // Play modes use the loadout already configured in the Loadout menu
-  bind('btnLocalPlay', () => startMode('local'));
   bind('btnFindMatch', () => startMode('online'));
   bind('btnVsBot', () => startMode('bot'));
 
@@ -123,7 +122,7 @@ function persistLoadout(): void {
   saveStoredHats(selectedHats[0], selectedHats[1]);
 }
 
-function startMode(mode: 'local' | 'online' | 'bot'): void {
+function startMode(mode: 'online' | 'bot'): void {
   loadoutMode = mode;
   persistLoadout();
   window.dispatchEvent(
@@ -140,12 +139,7 @@ function startMode(mode: 'local' | 'online' | 'bot'): void {
 
 function openLoadoutMenu(): void {
   ownedHats = loadOwnedHats();
-  for (let i = 0; i < 2; i++) {
-    if (!isHatOwned(selectedHats[i], ownedHats)) selectedHats[i] = 'none';
-  }
-  // Always both seats — P2 matters for local, still editable anytime
-  const p2 = document.getElementById('loadoutP2');
-  if (p2) p2.style.display = '';
+  if (!isHatOwned(selectedHats[0], ownedHats)) selectedHats[0] = 'none';
   buildHatPickers();
   switchScreen('loadout');
   refreshLoadoutSelection();
@@ -169,9 +163,7 @@ function formatLoadoutLine(player: 0 | 1): string {
 
 function refreshMainMenuLoadoutSum(): void {
   const p1 = document.getElementById('mmSumP1');
-  const p2 = document.getElementById('mmSumP2');
   if (p1) p1.textContent = formatLoadoutLine(0);
-  if (p2) p2.textContent = formatLoadoutLine(1);
   const d = document.getElementById('mmDustBalance');
   if (d) d.textContent = String(getDust());
 }
@@ -512,7 +504,7 @@ export function notifyDustChanged(): void {
   refreshMainMenuLoadoutSum();
 }
 
-export function getLoadoutMode(): 'local' | 'online' | 'bot' {
+export function getLoadoutMode(): 'online' | 'bot' {
   return loadoutMode;
 }
 
@@ -730,39 +722,186 @@ export function updateLobbyInfo(text: string): void {
   setText('lobbyInfo', text);
 }
 
-/** Waiting-for-player slots on matchmaking screen. */
-export function updateLobbyRoster(members: number, ready: boolean, maxRounds = 5): void {
-  const m = Math.max(0, Math.min(2, members | 0));
-  const fill = document.getElementById('lobbySlots');
-  if (fill) {
-    fill.innerHTML = '';
-    for (let i = 0; i < 2; i++) {
-      const slot = document.createElement('div');
-      slot.className = 'lobby-slot' + (i < m ? ' filled' : ' empty');
-      if (i < m && ready) slot.classList.add('ready');
-      slot.innerHTML = `<span class="ls-label">P${i + 1}</span><span class="ls-state">${
-        i < m ? (ready || i === 0 ? 'Ready' : 'Joined') : 'Waiting…'
-      }</span>`;
-      fill.appendChild(slot);
-    }
+export type LobbyPhaseId =
+  | 'idle'
+  | 'searching'
+  | 'hosting'
+  | 'joining'
+  | 'linked'
+  | 'starting'
+  | 'in_match'
+  | 'error';
+
+export interface LobbyStateView {
+  phase?: LobbyPhaseId | string;
+  members?: number;
+  max_members?: number;
+  is_host?: boolean;
+  lobby_id?: number | null;
+  local_name?: string;
+  peer_name?: string;
+  peer_ready?: boolean;
+  status?: string;
+  can_invite?: boolean;
+  max_rounds?: number;
+  ready?: boolean;
+}
+
+const PHASE_LABEL: Record<string, string> = {
+  idle: 'Idle',
+  searching: 'Searching',
+  hosting: 'Hosting',
+  joining: 'Joined',
+  linked: 'Linked',
+  starting: 'Starting',
+  in_match: 'In match',
+  error: 'Error',
+};
+
+/** Full lobby UI from structured backend state. */
+export function applyLobbyState(s: LobbyStateView): void {
+  const phase = String(s.phase || 'searching');
+  const members = Math.max(0, Math.min(2, (s.members ?? 0) | 0));
+  const ready = !!(s.peer_ready || s.ready || phase === 'starting' || phase === 'in_match');
+  const isHost = !!s.is_host;
+  const localName = (s.local_name || 'You').trim() || 'You';
+  const peerName = (s.peer_name || '').trim();
+  const maxRounds = s.max_rounds ?? 5;
+
+  const phaseEl = document.getElementById('lobbyPhase');
+  if (phaseEl) {
+    phaseEl.dataset.phase = phase;
+    phaseEl.textContent = PHASE_LABEL[phase] || phase;
   }
+
+  // Steps: 1 search → 2 lobby → 3 link → 4 start
+  const stepMap: Record<string, number> = {
+    searching: 1,
+    hosting: 2,
+    joining: 2,
+    linked: 3,
+    starting: 4,
+    in_match: 4,
+    error: 1,
+    idle: 0,
+  };
+  const step = stepMap[phase] ?? 1;
+  document.querySelectorAll('#lobbySteps .lobby-step').forEach((node, i) => {
+    const el = node as HTMLElement;
+    el.classList.remove('on', 'done');
+    if (i + 1 < step) el.classList.add('done');
+    else if (i + 1 === step) el.classList.add('on');
+  });
+
+  const scan = document.getElementById('lobbyScan');
+  if (scan) {
+    scan.classList.toggle(
+      'active',
+      phase === 'searching' || phase === 'hosting' || phase === 'joining' || phase === 'linked'
+    );
+  }
+
+  // Slots
+  const p1 = document.getElementById('slotP1');
+  const p2 = document.getElementById('slotP2');
+  const fillSlot = (
+    el: HTMLElement | null,
+    opts: {
+      filled: boolean;
+      name: string;
+      state: string;
+      you: boolean;
+      hostSeat: boolean;
+    }
+  ) => {
+    if (!el) return;
+    el.className =
+      'lobby-slot ' +
+      (opts.hostSeat ? 'p1' : 'p2') +
+      (opts.filled ? ' filled' : ' empty') +
+      (opts.you && opts.hostSeat ? ' host-you' : '') +
+      (opts.you && !opts.hostSeat ? ' you-p2' : '');
+    const nameEl = el.querySelector('.ls-name');
+    const stEl = el.querySelector('.ls-state');
+    if (nameEl) nameEl.textContent = opts.filled ? opts.name : 'Waiting…';
+    if (stEl) stEl.textContent = opts.state;
+  };
+
+  // P1 = host seat, P2 = guest
+  if (isHost) {
+    fillSlot(p1, {
+      filled: true,
+      name: localName,
+      state: members >= 2 ? (ready ? 'ready' : 'host') : 'host · open',
+      you: true,
+      hostSeat: true,
+    });
+    fillSlot(p2, {
+      filled: members >= 2,
+      name: peerName || 'Opponent',
+      state: members >= 2 ? (ready ? 'ready' : 'joining…') : 'empty',
+      you: false,
+      hostSeat: false,
+    });
+  } else {
+    // We are guest (P2)
+    fillSlot(p1, {
+      filled: members >= 1,
+      name: peerName || 'Host',
+      state: members >= 2 ? (ready ? 'ready' : 'host') : 'host',
+      you: false,
+      hostSeat: true,
+    });
+    fillSlot(p2, {
+      filled: true,
+      name: localName,
+      state: ready ? 'ready' : 'guest',
+      you: true,
+      hostSeat: false,
+    });
+  }
+
   const meta = document.getElementById('lobbyMeta');
   if (meta) {
-    meta.textContent =
-      m < 2
-        ? `Waiting for player… (${m}/2) · Best of ${maxRounds}`
-        : ready
-          ? `Both players ready · Best of ${maxRounds} · starting…`
-          : `Opponent joined (${m}/2) · syncing · Best of ${maxRounds}`;
+    meta.textContent = `Best of ${maxRounds} · ${members}/2`;
   }
+
   const info = document.getElementById('lobbyInfo');
-  if (info && m < 2) {
-    info.textContent = 'Waiting for player to join…';
-  } else if (info && m >= 2 && !ready) {
-    info.textContent = 'Opponent found — connecting…';
-  } else if (info && m >= 2 && ready) {
-    info.textContent = 'Both ready — match starting…';
+  if (info) {
+    if (phase === 'searching') info.textContent = 'Looking for an open lobby…';
+    else if (phase === 'hosting') info.textContent = 'Lobby open — invite a friend or wait.';
+    else if (phase === 'joining') info.textContent = 'In lobby — waiting for host.';
+    else if (phase === 'linked') info.textContent = 'Both players present — linking…';
+    else if (phase === 'starting') info.textContent = 'Starting match…';
+    else if (phase === 'in_match') info.textContent = 'Match starting.';
+    else if (phase === 'error') info.textContent = 'Lobby error.';
+    else info.textContent = s.status || '…';
   }
+
+  if (s.status) setText('lobbyStatus', s.status);
+
+  const idLabel = document.getElementById('lobbyIdLabel');
+  if (idLabel) {
+    idLabel.textContent = s.lobby_id ? String(s.lobby_id) : '—';
+  }
+
+  const inv = document.getElementById('btnInviteFriends') as HTMLButtonElement | null;
+  if (inv) {
+    const can = !!s.can_invite || (!!s.lobby_id && members < 2 && phase !== 'searching');
+    inv.disabled = !can;
+    inv.style.opacity = can ? '1' : '0.45';
+  }
+}
+
+/** @deprecated prefer applyLobbyState — kept for simple member updates */
+export function updateLobbyRoster(members: number, ready: boolean, maxRounds = 5): void {
+  applyLobbyState({
+    members,
+    peer_ready: ready,
+    ready,
+    max_rounds: maxRounds,
+    phase: members < 2 ? 'hosting' : ready ? 'starting' : 'linked',
+  });
 }
 
 export type QueueLogLevel = 'info' | 'ok' | 'warn' | 'err';

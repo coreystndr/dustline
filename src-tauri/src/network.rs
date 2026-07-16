@@ -14,6 +14,43 @@ pub const LOBBY_KEY_STATUS: &str = "status";
 pub const LOBBY_VAL_WAITING: &str = "waiting";
 pub const LOBBY_VAL_PLAYING: &str = "playing";
 
+/// Explicit lobby lifecycle for UI + matchmaking (single source of truth).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LobbyPhase {
+    #[default]
+    Idle,
+    /// Looking for an open DUSTLINE lobby
+    Searching,
+    /// We own a public waiting lobby (1/2)
+    Hosting,
+    /// We joined someone else's lobby as P2
+    Joining,
+    /// 2 members — handshake / Hello in progress
+    Linked,
+    /// Match about to begin / GameStart in flight
+    Starting,
+    /// In an active match
+    InMatch,
+    Error,
+}
+
+/// Snapshot pushed to the frontend on every meaningful lobby change.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LobbyStateSnap {
+    pub phase: LobbyPhase,
+    pub members: u8,
+    pub max_members: u8,
+    pub is_host: bool,
+    pub lobby_id: Option<u64>,
+    pub local_name: String,
+    pub peer_name: String,
+    pub peer_ready: bool,
+    pub status: String,
+    pub can_invite: bool,
+    pub max_rounds: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientInput {
     pub tick: u64,
@@ -106,6 +143,11 @@ pub struct NetworkManager {
     /// Match already auto-started for this lobby
     pub match_started: bool,
     pub status: String,
+    /// Explicit lobby lifecycle phase (UI)
+    pub phase: LobbyPhase,
+    pub lobby_members: u8,
+    pub local_name: String,
+    pub peer_name: String,
     /// Last accepted input tick per player (drop stale)
     pub last_input_tick: [u64; 2],
     /// Sticky last input — re-applied when no new packet this tick
@@ -139,6 +181,10 @@ impl NetworkManager {
             searching: false,
             match_started: false,
             status: "Steam not initialized".into(),
+            phase: LobbyPhase::Idle,
+            lobby_members: 0,
+            local_name: String::new(),
+            peer_name: String::new(),
             last_input_tick: [0, 0],
             held_input: [None, None],
             peer_primary: "AR".into(),
@@ -162,6 +208,38 @@ impl NetworkManager {
         self.two_player_since_ms = 0;
         self.held_input = [None, None];
         self.last_input_tick = [0, 0];
+        self.peer_name.clear();
+        if !self.searching {
+            self.phase = LobbyPhase::Idle;
+            self.lobby_members = 0;
+        }
+    }
+
+    pub fn lobby_snap(&self) -> LobbyStateSnap {
+        LobbyStateSnap {
+            phase: self.phase,
+            members: self.lobby_members.min(2),
+            max_members: 2,
+            is_host: self.is_host,
+            lobby_id: self.lobby_id,
+            local_name: if self.local_name.is_empty() {
+                "You".into()
+            } else {
+                self.local_name.clone()
+            },
+            peer_name: if self.peer_name.is_empty() {
+                String::new()
+            } else {
+                self.peer_name.clone()
+            },
+            peer_ready: self.peer_hello,
+            status: self.status.clone(),
+            can_invite: self.lobby_id.is_some()
+                && self.searching
+                && !self.match_started
+                && self.lobby_members < 2,
+            max_rounds: 5,
+        }
     }
 }
 
