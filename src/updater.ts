@@ -132,7 +132,16 @@ export async function checkForUpdates(opts?: { silent?: boolean }): Promise<bool
     });
     return true;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const raw = e instanceof Error ? e.message : String(e);
+    // Friendlier messages for common updater failures
+    let msg = raw;
+    if (/relative URL without a base/i.test(raw)) {
+      msg = 'Update server returned a bad download URL. Please update the website manifest.';
+    } else if (/Could not fetch|network|failed to fetch|error sending request/i.test(raw)) {
+      msg = 'Could not reach the update server. Check your internet connection.';
+    } else if (/signature|public key|minisign/i.test(raw)) {
+      msg = 'Update signature mismatch. Reinstall from the website if this persists.';
+    }
     // Network / no endpoint yet — silent on boot
     if (opts?.silent) {
       set({ phase: 'idle', error: null });
@@ -207,7 +216,11 @@ export function dismissUpdateUi(): void {
 
 /** Open the public download / changelog site. */
 export async function openDownloadSite(): Promise<void> {
-  // Prefer GitHub (source of truth), website is the pretty landing page
-  const url = 'https://github.com/coreystndr/dustline/releases/latest';
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const url = 'https://website-red-six-83.vercel.app/#download';
+  try {
+    const { open } = await import('@tauri-apps/plugin-shell');
+    await open(url);
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 }

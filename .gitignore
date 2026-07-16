@@ -43,3 +43,10 @@ __pycache__/
 # Optional local only
 *.pdb
 .cache/
+
+# Signing secrets / temp
+keys/*.password.txt
+keys/*password*
+tmp-sign-test.bin
+*.bin
+!website/public/**

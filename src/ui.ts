@@ -231,6 +231,9 @@ export function switchScreen(screen: ScreenId): void {
   if (screen === 'game') document.getElementById('hud')!.classList.add('active');
 }
 
+const DASH_COOLDOWN_MAX = 2.2; // matches engine dashCooldown after dash
+const ZONE_MAX_R = 380;
+
 export function updateHUD(state: GameState): void {
   if (activeScreen !== 'game') return;
   const p1 = state.players.find((p) => p.id === 0);
@@ -244,19 +247,32 @@ export function updateHUD(state: GameState): void {
   }
   setText(
     'roundInfo',
-    `R${state.current_round} · Best of ${state.max_rounds} · First to ${Math.ceil((state.max_rounds + 1) / 2)}`
+    `Round ${state.current_round} · Best of ${state.max_rounds} · First to ${Math.ceil((state.max_rounds + 1) / 2)}`
   );
 
+  const timerEl = document.getElementById('matchTimer');
+  if (timerEl) {
+    const t = Math.max(0, Math.floor(state.match_time ?? 0));
+    const m = Math.floor(t / 60);
+    const s = t % 60;
+    timerEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+  }
+
   const zoneEl = document.getElementById('zoneInfo');
-  if (zoneEl) {
+  const zoneLabel = document.getElementById('zoneLabel');
+  const zoneRadius = document.getElementById('zoneRadius');
+  const zoneFill = document.getElementById('zoneBarFill');
+  if (zoneEl && zoneLabel && zoneRadius) {
     const r = Math.round(state.zone_radius ?? 0);
     const tr = Math.round(state.zone_target_radius ?? r);
     const shrinking = r > tr + 1;
-    zoneEl.textContent = shrinking ? `SHRINKING · ${r}` : `SAFE · ${r}`;
-    zoneEl.style.borderColor = shrinking
-      ? 'rgba(220, 100, 80, 0.4)'
-      : 'rgba(170, 110, 255, 0.28)';
-    zoneEl.style.color = shrinking ? '#f0b0a0' : '#d2c0f5';
+    zoneEl.classList.toggle('shrinking', shrinking);
+    zoneLabel.textContent = shrinking ? 'SHRINKING' : 'SAFE';
+    zoneRadius.textContent = shrinking && tr < r ? `${r} → ${tr}` : String(r);
+    if (zoneFill) {
+      const pct = Math.max(0, Math.min(100, (r / ZONE_MAX_R) * 100));
+      zoneFill.style.width = `${pct}%`;
+    }
   }
 }
 
@@ -268,24 +284,62 @@ function updatePlayerHud(
     current_weapon: string;
     ammo_display: string;
     dash_cooldown?: number;
+    grenades?: number;
+    is_alive?: boolean;
   }
 ): void {
+  const panel = document.getElementById(prefix === 'p1' ? 'player1Hud' : 'player2Hud');
   const bar = document.getElementById(`${prefix}HealthBar`);
   const text = document.getElementById(`${prefix}HealthText`);
-  const weapon = document.getElementById(`${prefix}Weapon`);
-  if (!bar || !text || !weapon) return;
+  const wName = document.getElementById(`${prefix}WeaponName`);
+  const ammo = document.getElementById(`${prefix}Ammo`);
+  const dashChip = document.getElementById(`${prefix}DashChip`);
+  const dashText = document.getElementById(`${prefix}DashText`);
+  const dashMeter = document.getElementById(`${prefix}DashMeter`);
+  const dashFill = document.getElementById(`${prefix}DashFill`);
+  const nadeChip = document.getElementById(`${prefix}NadeChip`);
+  const nadesEl = document.getElementById(`${prefix}Nades`);
+  if (!bar || !text || !wName || !ammo) return;
 
-  const pct = Math.max(0, (player.health / player.max_health) * 100);
+  const hp = Math.max(0, player.health);
+  const pct = Math.max(0, Math.min(100, (hp / player.max_health) * 100));
+  const alive = player.is_alive !== false && hp > 0;
+  const low = alive && pct <= 30;
+
   (bar as HTMLElement).style.width = `${pct}%`;
-  text.textContent = `${Math.ceil(player.health)}`;
+  text.textContent = alive ? `${Math.ceil(hp)}` : '—';
 
-  const dash =
-    player.dash_cooldown && player.dash_cooldown > 0
-      ? `  ·  DASH ${player.dash_cooldown.toFixed(1)}s`
-      : '';
-  const nades =
-    player.grenades !== undefined ? `  ·  Nades ${player.grenades}` : '';
-  weapon.textContent = `${player.current_weapon.toUpperCase()}  ${player.ammo_display}${nades}${dash}`;
+  if (panel) {
+    panel.classList.toggle('low-hp', low);
+    panel.classList.toggle('dead', !alive);
+  }
+
+  wName.textContent = (player.current_weapon || '—').toUpperCase();
+  const ammoStr = player.ammo_display || '—';
+  ammo.textContent = ammoStr;
+  ammo.classList.toggle('reloading', ammoStr.includes('…') || /reload/i.test(ammoStr));
+  ammo.classList.toggle('empty', ammoStr === '0' || ammoStr.startsWith('0/'));
+
+  const cd = Math.max(0, player.dash_cooldown ?? 0);
+  const dashReady = cd <= 0.02;
+  if (dashText) dashText.textContent = dashReady ? 'Ready' : `${cd.toFixed(1)}s`;
+  if (dashChip) {
+    dashChip.classList.toggle('ready', dashReady && alive);
+    dashChip.classList.toggle('cooling', !dashReady && alive);
+    dashChip.classList.toggle('dead-chip', !alive);
+  }
+  if (dashMeter && dashFill) {
+    const fill = dashReady ? 100 : Math.max(0, Math.min(100, (1 - cd / DASH_COOLDOWN_MAX) * 100));
+    dashFill.style.width = `${fill}%`;
+    dashMeter.classList.toggle('cooling', !dashReady);
+    dashMeter.classList.toggle('ready', dashReady);
+  }
+
+  if (nadesEl) nadesEl.textContent = String(player.grenades ?? 0);
+  if (nadeChip) {
+    nadeChip.classList.toggle('ready', (player.grenades ?? 0) > 0 && alive);
+    nadeChip.classList.toggle('dead-chip', !alive);
+  }
 }
 
 export function showCountdown(value: number): void {

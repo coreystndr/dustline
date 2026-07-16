@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dustline — 1v1 island shooter</title>
+  <title>Dustline — 1v1 island duel</title>
   <meta name="description" content="Dustline is a fast 1v1 top-down island duel. Download the Windows installer. Auto-updates included." />
   <meta property="og:title" content="Dustline" />
   <meta property="og:description" content="1v1 island shooter — storm, loadouts, grenades, Steam P2P." />
@@ -12,49 +12,80 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="bg"></div>
-  <div class="noise"></div>
-
-  <header class="nav">
-    <a class="logo" href="/">
-      <span class="mark"></span>
-      <span>Dustline</span>
-    </a>
-    <nav>
-      <a href="#features">Features</a>
-      <a href="#download">Download</a>
-      <a href="#updates">Updates</a>
-    </nav>
-  </header>
-
-  <main>
-    <section class="hero">
-      <p class="eyebrow">1v1 · island · Windows</p>
-      <h1>Stay in the circle.<br /><em>Outgun the other guy.</em></h1>
-      <p class="lede">
-        Fast top-down 1v1 with a shrinking storm, loadouts, recoil, grenades,
-        and Steam P2P. Native desktop app with auto-updates.
-      </p>
-      <div class="cta-row">
-        <a class="btn primary" id="btnDownload" href="https://github.com/coreystndr/dustline/releases/latest">
-          Download for Windows
-          <span class="btn-sub" id="dlVersion">Installer · GitHub Releases</span>
+  <div class="shell">
+    <div class="shell-main">
+      <header class="nav">
+        <a class="logo" href="/">
+          <span class="mark"></span>
+          Dustline
         </a>
-        <a class="btn ghost" href="#features">Features</a>
-      </div>
-      <p class="hint" id="dlHint">NSIS · current user · auto-updater included</p>
-    </section>
+        <nav class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#download">Download</a>
+          <a href="#updates">Updates</a>
+        </nav>
+      </header>
 
-    <section id="features" class="features">
-      <h2>What you get</h2>
-      <div class="grid">
+      <div class="content">
+        <div class="brand">
+          <h1>Dustline</h1>
+          <div class="brand-tag">1v1 island duel · best of 5</div>
+        </div>
+
+        <div class="menu-stack">
+          <a class="menu-btn primary" id="btnDownload" href="/downloads/DUSTLINE_1.0.0_x64-setup.exe" download>
+            Download for Windows
+            <span class="btn-hint" id="dlVersion">v1.0.0</span>
+          </a>
+          <a class="menu-btn" href="#features">
+            Features
+            <span class="btn-hint">what you get</span>
+          </a>
+          <a class="menu-btn" href="#download">
+            Install notes
+            <span class="btn-hint">setup</span>
+          </a>
+          <a class="menu-btn" href="#updates">
+            Changelog
+            <span class="btn-hint">updates</span>
+          </a>
+          <a class="menu-btn ghost" href="/updates/latest.json">
+            Update manifest
+            <span class="btn-hint">json</span>
+          </a>
+        </div>
+
+        <div class="chip-row">
+          <span class="chip">first to 3</span>
+          <span class="chip">storm shrinks</span>
+          <span class="chip">center hits harder</span>
+        </div>
+
+        <p class="menu-foot">WASD + mouse · G grenade · Q switch · Shift dash · F11 fullscreen</p>
+      </div>
+    </div>
+
+    <aside class="shell-side" aria-hidden="true">
+      <div class="island"></div>
+      <div class="side-caption">
+        <strong>Island arena</strong>
+        Storm circle · crates · medkits · no weapon pickups mid-round
+      </div>
+    </aside>
+  </div>
+
+  <div class="sections">
+    <section id="features" class="section">
+      <div class="section-title">In the build <strong>Features</strong></div>
+      <p class="section-sub">Same kit as the desktop menu — loadout, skins, storm, gunplay.</p>
+      <div class="feature-grid">
         <article>
           <h3>Island 1v1</h3>
           <p>Close-cam arena, crates, storm shrink, medkits. Best of 5, first to 3.</p>
         </article>
         <article>
           <h3>Loadouts &amp; skins</h3>
-          <p>SMG, AR, Shotgun, Sniper — pistol secondary. Unique models and skins.</p>
+          <p>SMG, AR, Shotgun, Sniper + pistol. Unique models and finishes.</p>
         </article>
         <article>
           <h3>Gunplay</h3>
@@ -62,54 +93,62 @@
         </article>
         <article>
           <h3>Grenades</h3>
-          <p>Fuse, bounce, splash falloff. G or right-click to throw.</p>
+          <p>Fuse, bounce, splash falloff. G or right-click.</p>
         </article>
         <article>
           <h3>Steam matchmaking</h3>
-          <p>Queue, join, auto-start at 2 players. Solo bot mode for testing.</p>
+          <p>Queue, join, auto-start at 2. Solo bot mode for testing.</p>
         </article>
         <article>
           <h3>Auto updates</h3>
-          <p>Signed updates from this site. In-game progress UI — no reinstall.</p>
+          <p>Signed updates from this site. In-game progress — no reinstall.</p>
         </article>
       </div>
     </section>
 
-    <section id="download" class="download panel">
-      <div>
-        <h2>Download</h2>
-        <p class="lede-sm">Windows 10/11 · x64 · NSIS installer</p>
-        <ul class="dl-list">
-          <li><strong>Installer</strong> — from GitHub Releases</li>
-          <li><strong>Auto-updater</strong> — same Releases (latest.json)</li>
-          <li><strong>Steam optional</strong> — online needs Steam running</li>
-        </ul>
-        <a class="btn primary" id="btnDownload2" href="https://github.com/coreystndr/dustline/releases/latest">
-          Download installer
-        </a>
-        <p class="meta" id="releaseMeta">Latest: loading…</p>
-      </div>
-      <div class="card-side">
-        <h3>After install</h3>
-        <ol>
-          <li>Launch <strong>Dustline</strong></li>
-          <li>Local / vs Bot / Find Match</li>
-          <li>Updates come from GitHub automatically</li>
-        </ol>
-        <a class="link" href="https://github.com/coreystndr/dustline/releases">GitHub Releases →</a><br />
-        <a class="link" href="https://github.com/coreystndr/dustline">Source repo →</a>
+    <section id="download" class="section">
+      <div class="section-title">Get the game <strong>Download</strong></div>
+      <div class="panel">
+        <div class="panel-body">
+          <p class="title-lg">Windows installer</p>
+          <p class="lede-sm">Windows 10/11 · x64 · NSIS · current user</p>
+          <ul class="dl-list">
+            <li><strong>Installer</strong> — guided setup, desktop shortcut</li>
+            <li><strong>Auto-updater</strong> — pulls signed builds from this site</li>
+            <li><strong>Steam optional</strong> — online needs Steam running</li>
+          </ul>
+          <div class="panel-actions">
+            <a class="menu-btn primary" id="btnDownload2" href="/downloads/DUSTLINE_1.0.0_x64-setup.exe" download>
+              Download installer
+              <span class="btn-hint">exe</span>
+            </a>
+          </div>
+          <p class="meta" id="releaseMeta">Latest: loading…</p>
+        </div>
+        <div class="panel-side">
+          <h3>Player 1 · after install</h3>
+          <ol>
+            <li>Launch <strong>Dustline</strong></li>
+            <li>Local / vs Bot / Find Match</li>
+            <li>Pick loadout + skin</li>
+            <li>Updates appear in-game</li>
+          </ol>
+          <a class="link" href="/updates/latest.json">Update manifest →</a>
+        </div>
       </div>
     </section>
 
-    <section id="updates" class="updates panel">
-      <h2>Changelog</h2>
-      <div id="changelog" class="changelog">
-        <p class="muted">Loading release notes…</p>
+    <section id="updates" class="section">
+      <div class="changelog-panel">
+        <div class="section-title">System <strong>Changelog</strong></div>
+        <div id="changelog" class="changelog">
+          <p class="muted">Loading release notes…</p>
+        </div>
       </div>
     </section>
-  </main>
+  </div>
 
-  <footer>
+  <footer class="site-footer">
     <span>Dustline</span>
     <span class="sep">·</span>
     <span>com.dustline.game</span>

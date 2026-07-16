@@ -1,12 +1,12 @@
 {
   "version": "1.0.0",
-  "notes": "Bootstrap manifest. Real updates are published to GitHub Releases by CI.\n\nhttps://github.com/coreystndr/dustline/releases",
+  "notes": "Initial release. Windows installer includes steam_api64.dll. Steam optional for online matchmaking.",
   "pub_date": "2026-07-16T12:00:00Z",
-  "installer_url": "https://github.com/coreystndr/dustline/releases/latest",
+  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.0_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "signature": "REPLACE_AFTER_FIRST_CI_RELEASE",
-      "url": "https://github.com/coreystndr/dustline/releases/latest/download/latest.json"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSHUxMEJSL1hvdmQ1ZU1QTVljeFptR0xzUlc5YzA5cXZGOG9NODlIQTkzeTlZenZqS1hzNms4NGp6SmFCR1pKaXZwaU9xNEVyVW1aZyswaWhOWlFEWndBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTY5MDIxCWZpbGU6RFVTVExJTkVfMS4wLjBfeDY0LXNldHVwLmV4ZQpwSlBHVzhMcTY3eGlSMGQ1b1ZoNjViTk1ld0FKNVNMK0RnaTQvMStIdGgwbnZaZHZlRyt0ejlhWXUwaU53dG9jUzYwSHMwTTZMb0s2bEVmbzkzVXFDdz09Cg==",
+      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.0_x64-setup.exe"
     }
   },
   "history": []
