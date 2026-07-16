@@ -62,7 +62,7 @@ class LocalPlayer {
   height = 28;
   health = 100;
   maxHealth = 100;
-  speed = 215;
+  speed = 150.5; // ~30% slower than 215
   aimAngle = 0;
   recoilOffset = 0;
   recoilSide = 1;

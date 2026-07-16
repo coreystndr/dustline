@@ -446,6 +446,7 @@ export function renderUpdateOverlay(s: {
   info: { version: string; currentVersion: string; notes: string } | null;
   progress: number;
   error: string | null;
+  forceWebInstall?: boolean;
 }): void {
   const overlay = document.getElementById('updateOverlay');
   if (!overlay) return;
@@ -476,7 +477,11 @@ export function renderUpdateOverlay(s: {
   if (notes) {
     if (s.phase === 'checking') notes.textContent = 'Checking website for a new build…';
     else if (s.phase === 'none') notes.textContent = 'You are on the latest version.';
-    else if (s.phase === 'error') notes.textContent = 'Could not complete the update check.';
+    else if (s.phase === 'error' && s.forceWebInstall) {
+      notes.textContent =
+        s.info?.notes ??
+        'One reinstall is required. Download the new installer — auto-updates work after that.';
+    } else if (s.phase === 'error') notes.textContent = 'Could not complete the update check.';
     else notes.textContent = s.info?.notes ?? '';
   }
   if (fill) fill.style.width = `${Math.max(0, Math.min(100, s.progress))}%`;
@@ -489,7 +494,7 @@ export function renderUpdateOverlay(s: {
     downloading: 'Downloading…',
     installing: 'Installing…',
     done: 'Restarting…',
-    error: 'Error',
+    error: s.forceWebInstall ? 'Reinstall required' : 'Error',
     none: 'Up to date',
   };
   if (phase) phase.textContent = phaseMap[s.phase] ?? s.phase;
@@ -505,7 +510,7 @@ export function renderUpdateOverlay(s: {
   }
 
   if (install) {
-    const canInstall = s.phase === 'available';
+    const canInstall = s.phase === 'available' || !!s.forceWebInstall;
     install.disabled = !canInstall;
     install.style.opacity = canInstall ? '1' : '0.45';
     install.textContent =
@@ -515,7 +520,9 @@ export function renderUpdateOverlay(s: {
           ? 'Installing…'
           : s.phase === 'none'
             ? 'Up to date'
-            : 'Download & Install';
+            : s.forceWebInstall
+              ? 'Download installer (website)'
+              : 'Download & Install';
   }
   if (later) {
     later.disabled = s.phase === 'downloading' || s.phase === 'installing';

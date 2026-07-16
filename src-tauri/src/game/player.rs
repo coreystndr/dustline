@@ -66,7 +66,7 @@ impl Player {
             height: 28.0,
             health: 100,
             max_health: 100,
-            speed: 215.0,
+            speed: 150.5, // ~30% slower than 215
             direction: if id == 0 {
                 Direction::Right
             } else {

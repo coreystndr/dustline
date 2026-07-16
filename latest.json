@@ -1,12 +1,22 @@
 {
-  "version": "1.0.1",
-  "notes": "Matchmaking fix (worldwide queue + lobby merge + Steam relay). Auto-update pipeline fully wired. steam_api64.dll included.",
-  "pub_date": "2026-07-16T02:49:31.454Z",
-  "installer_url": "https://github.com/coreystndr/dustline/releases/download/v1.0.1/DUSTLINE_1.0.1_x64-setup.exe",
+  "version": "1.0.2",
+  "notes": "Fix update key UX. One-time reinstall from website if you are on 1.0.0. Matchmaking + auto-updates wired.",
+  "pub_date": "2026-07-16T02:56:30.541Z",
+  "installer_url": "https://github.com/coreystndr/dustline/releases/download/v1.0.2/DUSTLINE_1.0.2_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSHNMZndiNzNzaElVTHFyVzVXZjk1S1VaL2puWkxHWk9jUUU4NjZGaENDNGwwZ0FSRXpTSit0TjJYQnlKQ3pwTGlFVCtTTXBwS3lBc0p4TFpzSk9MdXdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTcwMTQ3CWZpbGU6RFVTVExJTkVfMS4wLjFfeDY0LXNldHVwLmV4ZQpxKzNoeEhreFhGbzZkTGRjN1V2bG1HUEVxUHZ5R0RjRk83Uy8yK2UrNjBkbjIxWFg2d3lrck52bFNvMXhqbkI4UTJCWDNWZElDQ0c0cFdsSUROWEhCZz09Cg==",
-      "url": "https://github.com/coreystndr/dustline/releases/download/v1.0.1/DUSTLINE_1.0.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSG5WSEJVSklHTVJobDRBbThSb2VwTWtKNTVqYWoyRW12REYxYzVnd2k1K3Q4RGJMUDFGekgyNTQ1OEJNaHV1alR6cVh3NHhnMHE1Z2ZvSjMrT3lMaVFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTcwNTU4CWZpbGU6RFVTVExJTkVfMS4wLjJfeDY0LXNldHVwLmV4ZQpKWnZEa2toTTJqK2RoVmdlK2R1VjBDS1c3Y3ZCYlRqQU1XNzlRTXhWSXlVUnBCdVpLeGFyVWtJV21oSFpjRDA1QnpOVzhyNnZDZUtSelVRMFNUYmhCQT09Cg==",
+      "url": "https://github.com/coreystndr/dustline/releases/download/v1.0.2/DUSTLINE_1.0.2_x64-setup.exe"
     }
-  }
+  },
+  "history": [
+    {
+      "version": "1.0.1",
+      "notes": "Matchmaking fix"
+    },
+    {
+      "version": "1.0.0",
+      "notes": "Initial"
+    }
+  ]
 }

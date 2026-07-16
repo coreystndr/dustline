@@ -1,0 +1,10 @@
+﻿const fs=require('fs');
+const v='1.0.2';
+const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.version=v;
+fs.writeFileSync('package.json', JSON.stringify(pkg,null,2)+'\n');
+const conf=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')); conf.version=v;
+fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf,null,2)+'\n');
+let cargo=fs.readFileSync('src-tauri/Cargo.toml','utf8');
+cargo=cargo.replace(/^version\s*=\s*"[^"]+"/m, 'version = "'+v+'"');
+fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+console.log('bumped to', v);
