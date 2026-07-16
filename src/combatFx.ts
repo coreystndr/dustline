@@ -101,13 +101,19 @@ export function feedbackHitFromEvent(opts: {
 }): void {
   const crit = !!opts.crit || opts.damage >= 40;
   if (opts.iAmAttacker) {
-    onDealtDamage(overlaySpawn, opts.x, opts.y, opts.damage, {
-      crit,
-      kill: opts.kill,
-      showHitmarker: true,
-    });
-  } else {
-    // Still show numbers for spectator / local co-op visibility
+    if (opts.damage > 0) {
+      onDealtDamage(overlaySpawn, opts.x, opts.y, opts.damage, {
+        crit,
+        kill: opts.kill,
+        showHitmarker: true,
+      });
+    } else if (opts.kill) {
+      pulseHitmarker({ crit: true, kill: true });
+    }
+  } else if (opts.damage > 0 && (opts.iAmVictim || opts.iAmAttacker)) {
+    spawnDamageNumber(overlaySpawn, opts.x, opts.y, opts.damage, { crit });
+  } else if (opts.damage > 0) {
+    // Still show numbers so both peers see hits
     spawnDamageNumber(overlaySpawn, opts.x, opts.y, opts.damage, { crit });
   }
   if (opts.iAmVictim) {

@@ -219,7 +219,7 @@ function setupEvents(): void {
     } else if (detail.mode === 'bot') {
       void startBotMatchmakingSim(detail.loadouts, skins);
     } else {
-      void handleFindMatch(detail.loadouts[0]);
+      void handleFindMatch(detail.loadouts[0], skins[0]);
     }
   }) as EventListener);
   window.addEventListener('ui:leaveLobby', handleLeaveLobby);
@@ -256,25 +256,25 @@ function setupEvents(): void {
       const sourceId = hit.source_id ?? -1;
       const iAmAttacker = sourceId === localPlayerId;
       const iAmVictim = targetId === localPlayerId;
+      const isCrit = !!(hit.crit || hit.Crit || dmg >= 40);
       feedbackHitFromEvent({
         x: hit.x,
         y: hit.y,
         damage: dmg,
         iAmAttacker,
         iAmVictim,
-        crit: dmg >= 40,
+        crit: isCrit,
+        kill: false,
       });
-      // World impact particles
-      const sp = spawnOverlayParticle;
       vfxHit(
-        sp,
+        spawnOverlayParticle,
         hit.x,
         hit.y,
-        dmg >= 40 ? '#ffe08a' : targetId === 0 ? '#e07a5f' : '#5aa8ff',
-        dmg >= 40
+        isCrit ? '#ffe08a' : targetId === 0 ? '#e07a5f' : '#5aa8ff',
+        isCrit
       );
       if (iAmVictim) setScreenShake(0.35 + Math.min(0.4, dmg / 100));
-      else if (iAmAttacker) setScreenShake(0.18 + (dmg >= 40 ? 0.15 : 0));
+      else if (iAmAttacker) setScreenShake(0.18 + (isCrit ? 0.15 : 0));
     });
 
     tauriListen('player_died', (payload) => {
@@ -285,24 +285,59 @@ function setupEvents(): void {
       vfxDeath(spawnOverlayParticle, died.x, died.y);
       setScreenShake(0.9);
       if (died.target_id === localPlayerId) onTookDamage(1.1);
+      else {
+        // Attacker kill marker
+        feedbackHitFromEvent({
+          x: died.x,
+          y: died.y,
+          damage: 0,
+          iAmAttacker: true,
+          iAmVictim: false,
+          kill: true,
+          crit: true,
+        });
+      }
     });
 
     tauriListen('round_end', () => soundSystem.play('round_end'));
     tauriListen('weapon_pickup', () => soundSystem.play('pickup'));
     tauriListen('reload', () => soundSystem.play('reload'));
+    tauriListen('dash', (payload) => {
+      const event = payload.payload as SoundEvent;
+      if (event.Dash) soundSystem.play('dash', event.Dash.x, event.Dash.y);
+    });
     tauriListen('steam_status', (payload) => {
       const msg = String(payload.payload);
       updateLobbyStatus(msg);
       appendQueueLog(msg, 'info');
+      // Enable invite once lobby id appears in status
+      const inv = document.getElementById('btnInviteFriends') as HTMLButtonElement | null;
+      if (inv && /lobby\s+\d+/i.test(msg)) {
+        inv.disabled = false;
+        inv.style.opacity = '1';
+      }
+    });
+    tauriListen('opponent_left', () => {
+      appendQueueLog('Opponent left the match', 'warn');
+      updateLobbyStatus('Opponent disconnected');
+      isGameRunning = false;
+      switchScreen('start');
     });
     tauriListen('match_found', (payload) => {
       const data = payload.payload as { player_id?: number; is_host?: boolean };
+      if (isGameRunning && isOnline) {
+        // Idempotent — ignore double match_found
+        return;
+      }
       localPlayerId = data.player_id ?? 0;
       isLocalPlay = false;
       isOnline = true;
       isBotMatch = false;
       localEngine = null;
       lastRoundState = '';
+      resetCombatFx();
+      setParticles([]);
+      setScreenShake(0);
       setCameraFollow(localPlayerId);
       updateLobbyInfo('Match found — fighting!');
       updateLobbyStatus(data.is_host ? 'You are Player 1 (host)' : 'You are Player 2');
@@ -315,9 +350,19 @@ function setupEvents(): void {
       void ensureFullscreen(true);
       fitAppToViewport();
       soundSystem.play('round_start');
+      // Push loadout again now that match exists
+      if (pendingOnlineLoadout && tauriInvoke) {
+        void tauriInvoke('set_loadout', {
+          primary: pendingOnlineLoadout.primary,
+          skin: pendingOnlineLoadout.skin,
+        }).catch(() => undefined);
+      }
     });
   }
 }
+
+let pendingOnlineLoadout: { primary: WeaponType; skin: SkinId } | null = null;
+let onlineInputTick = 0;
 
 function startLocalWithLoadout(
   loadouts: [WeaponType, WeaponType],
@@ -454,19 +499,29 @@ async function handleInviteFriends(): Promise<void> {
   }
 }
 
-async function handleFindMatch(_primary?: WeaponType): Promise<void> {
+async function handleFindMatch(
+  primary: WeaponType = 'AR',
+  skin: SkinId = DEFAULT_SKIN
+): Promise<void> {
   cancelBotSim();
   isLocalPlay = false;
   isOnline = true;
   isBotMatch = false;
   localEngine = null;
   isGameRunning = false;
+  pendingOnlineLoadout = { primary, skin };
   switchScreen('lobby');
   clearQueueLog();
   updateLobbyInfo('Searching for opponent…');
   updateLobbyStatus('Connecting to Steam matchmaking…');
   appendQueueLog('Steam matchmaking started', 'info');
   setCameraFollow(localPlayerId);
+
+  const inv = document.getElementById('btnInviteFriends') as HTMLButtonElement | null;
+  if (inv) {
+    inv.disabled = true;
+    inv.style.opacity = '0.45';
+  }
 
   if (!tauriInvoke) {
     updateLobbyInfo('Steam app required — use “Test vs Bot” for solo.');
@@ -477,6 +532,8 @@ async function handleFindMatch(_primary?: WeaponType): Promise<void> {
   }
 
   try {
+    await tauriInvoke('set_loadout', { primary, skin });
+    appendQueueLog(`Loadout locked: ${primary} · ${skin}`, 'ok');
     appendQueueLog('Calling steam_find_match…', 'info');
     appendQueueLog('Need: Steam running + logged in (AppID 480 Spacewar)', 'info');
     const result = await tauriInvoke('steam_find_match');
@@ -485,7 +542,7 @@ async function handleFindMatch(_primary?: WeaponType): Promise<void> {
     updateLobbyInfo('In queue — invite a friend or wait for auto-match (2/2).');
     appendQueueLog(msg, 'ok');
     appendQueueLog('Searching worldwide lobbies + waiting for opponent…', 'info');
-    appendQueueLog('Tip: Invite Friend opens the Steam overlay once a lobby exists', 'info');
+    appendQueueLog('Tip: Invite Friend opens Steam once a lobby id appears', 'info');
     appendQueueLog('Keep this screen open. Cancel aborts the queue.', 'warn');
   } catch (e) {
     updateLobbyStatus('Matchmaking failed');
@@ -607,11 +664,13 @@ function onRoundStateChanged(state: GameState): void {
 }
 
 function processOnlineInput(): void {
-  if (!tauriInvoke || !currentGameState) return;
-  const me = currentGameState.players.find((p) => p.id === localPlayerId);
+  if (!tauriInvoke || !isOnline || !isGameRunning) return;
+  // Don't require state for sending — host needs early inputs during countdown too
+  const me = currentGameState?.players.find((p) => p.id === localPlayerId);
   const cx = me ? me.x + 14 : 640;
   const cy = me ? me.y + 14 : 360;
   const input = getOnlineInput(cx, cy);
+  onlineInputTick += 1;
 
   void tauriInvoke('send_input', {
     playerId: localPlayerId,
@@ -622,6 +681,8 @@ function processOnlineInput(): void {
     weaponSwitch: input.weaponSwitch,
     reload: input.reload,
     dash: input.dash,
+    grenade: input.grenade,
+    tick: onlineInputTick,
   }).catch(() => undefined);
 }
 
@@ -642,9 +703,9 @@ function gameLoop(timestamp: number): void {
     }
   }
 
-  if (isGameRunning && !isPaused()) {
+  if (isGameRunning) {
     if (isLocalPlay || !tauriInvoke || !isOnline) {
-      if (localEngine) {
+      if (!isPaused() && localEngine) {
         matchTimeAccum += deltaTime;
         const p1 = localEngine.players[0];
         const c1 = p1.getCenter();
@@ -666,6 +727,7 @@ function gameLoop(timestamp: number): void {
         handleGameStateUpdate(localEngine.getSnapshot());
       }
     } else {
+      // Online: never pause-gate inputs (would freeze you while opponent plays)
       processOnlineInput();
     }
   }

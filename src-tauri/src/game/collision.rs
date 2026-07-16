@@ -95,8 +95,8 @@ pub fn process_projectile_collisions(
     projectiles: &mut Vec<Projectile>,
     players: &[Player],
     arena: &Arena,
-) -> Vec<(u8, u8, i32)> {
-    // (source_id, target_id, damage)
+) -> Vec<(u8, u8, i32, bool)> {
+    // (source_id, target_id, damage, crit)
     let mut hits = Vec::new();
 
     for proj in projectiles.iter_mut() {
@@ -113,7 +113,15 @@ pub fn process_projectile_collisions(
         }
         for player in players.iter() {
             if projectile_hits_player(proj, player) {
-                hits.push((proj.owner_id, player.id, proj.damage));
+                // Hit-location mult: center ~1.35×, edge ~0.60× (matches local engine)
+                let (cx, cy) = player.center();
+                let hit_dist = ((proj.x - cx).powi(2) + (proj.y - cy).powi(2)).sqrt();
+                let radius = player.width.max(player.height) * 0.5;
+                let edge_t = (hit_dist / radius.max(1.0)).min(1.0);
+                let mult = 1.35 - edge_t * 0.75;
+                let dmg = ((proj.damage as f64) * mult).round().max(1.0) as i32;
+                let crit = edge_t < 0.28;
+                hits.push((proj.owner_id, player.id, dmg, crit));
                 if !proj.penetrate {
                     proj.deactivate();
                 }

@@ -4,7 +4,7 @@ const SITE = 'https://website-red-six-83.vercel.app';
 const LOCAL_MANIFEST = '/updates/latest.json';
 
 function installerPathFor(version) {
-  const v = (version || '1.0.5').replace(/^v/, '');
+  const v = (version || '1.0.6').replace(/^v/, '');
   return `${SITE}/downloads/DUSTLINE_${v}_x64-setup.exe`;
 }
 
@@ -31,7 +31,7 @@ function setDownloadHref(version, directUrl) {
     a2.href = url;
     a2.setAttribute('download', '');
   }
-  if (ver) ver.textContent = `v${(version || '1.0.5').replace(/^v/, '')}`;
+  if (ver) ver.textContent = `v${(version || '1.0.6').replace(/^v/, '')}`;
 }
 
 async function fetchJson(url) {
@@ -43,12 +43,12 @@ async function fetchJson(url) {
 async function boot() {
   const meta = document.getElementById('releaseMeta');
   const log = document.getElementById('changelog');
-  const fallback = installerPathFor('1.0.5');
-  setDownloadHref('1.0.5', fallback);
+  const fallback = installerPathFor('1.0.6');
+  setDownloadHref('1.0.6', fallback);
 
   try {
     const data = await fetchJson(LOCAL_MANIFEST);
-    const version = (data.version || '1.0.5').replace(/^v/, '');
+    const version = (data.version || '1.0.6').replace(/^v/, '');
     const installer = data.installer_url || installerPathFor(version);
     setDownloadHref(version, installer);
 
@@ -76,12 +76,12 @@ async function boot() {
     }
   } catch (e) {
     if (meta) {
-      meta.innerHTML = `Latest: <strong>v1.0.5</strong> Â· <a href="${fallback}">download installer</a>`;
+      meta.innerHTML = `Latest: <strong>v1.0.6</strong> Â· <a href="${fallback}">download installer</a>`;
     }
     if (log) {
-      log.innerHTML = '<p class="muted">v1.0.5 â€” Windows installer (auto-updates).</p>';
+      log.innerHTML = '<p class="muted">v1.0.6 â€” Windows installer (auto-updates).</p>';
     }
-    setDownloadHref('1.0.5', fallback);
+    setDownloadHref('1.0.6', fallback);
     console.warn('manifest', e);
   }
 }

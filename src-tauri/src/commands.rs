@@ -1,6 +1,6 @@
 use std::sync::{Arc, MutexGuard, PoisonError};
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::game::state::GameState;
 use crate::network::{ClientInput, NetworkEvent, SharedGameState, CHANNEL_EVENTS, CHANNEL_INPUT};
@@ -63,9 +63,11 @@ pub fn send_input(
     weapon_switch: bool,
     reload: bool,
     dash: bool,
+    grenade: Option<bool>,
+    tick: Option<u64>,
 ) -> Result<(), String> {
     let input = ClientInput {
-        tick: 0,
+        tick: tick.unwrap_or(0),
         move_x,
         move_y,
         aim_angle,
@@ -73,6 +75,7 @@ pub fn send_input(
         weapon_switch,
         reload,
         dash,
+        grenade: grenade.unwrap_or(false),
     };
 
     let (steam_ready, is_host) = {
@@ -81,17 +84,63 @@ pub fn send_input(
     };
 
     if steam_ready && !is_host {
-        if let Ok(mut out) = state.outbound.lock() {
-            out.push((
-                CHANNEL_INPUT,
-                serde_json::to_vec(&input).unwrap_or_default(),
-            ));
+        if let Ok(bytes) = serde_json::to_vec(&input) {
+            if let Ok(mut out) = state.outbound.lock() {
+                // Reliable so dash/reload/switch edges aren't dropped
+                out.push((CHANNEL_INPUT, bytes, true));
+            }
         }
     } else {
         let mut inputs = lock_inputs(&state)?;
         inputs.push((player_id, input));
     }
     Ok(())
+}
+
+/// Store local loadout for online match; host also applies immediately.
+#[tauri::command]
+pub fn set_loadout(
+    state: State<'_, Arc<SharedGameState>>,
+    primary: String,
+    skin: String,
+) -> Result<String, String> {
+    let wt = crate::game::weapons::WeaponType::from_str_loose(&primary);
+    {
+        let mut net = lock_net(&state)?;
+        net.local_primary = primary.clone();
+        net.local_skin = if skin.is_empty() {
+            "default".into()
+        } else {
+            skin.clone()
+        };
+        let pid = net.local_player_id;
+        let is_host = net.is_host;
+        drop(net);
+        let mut game = lock_game(&state)?;
+        if game.players.iter().any(|p| p.id == pid) {
+            game.set_player_loadout(pid, wt, &skin);
+        }
+        // Host notifies client of host loadout
+        if is_host {
+            if let Ok(bytes) = serde_json::to_vec(&NetworkEvent::Loadout {
+                player_id: 0,
+                primary: primary.clone(),
+                skin: skin.clone(),
+            }) {
+                if let Ok(mut out) = state.outbound.lock() {
+                    out.push((CHANNEL_EVENTS, bytes, true));
+                }
+            }
+        }
+    }
+    Ok(format!("loadout {primary}"))
+}
+
+/// Whether a lobby id exists (for enabling Invite button).
+#[tauri::command]
+pub fn steam_lobby_ready(state: State<'_, Arc<SharedGameState>>) -> Result<bool, String> {
+    let net = lock_net(&state)?;
+    Ok(net.lobby_id.is_some() && net.searching)
 }
 
 #[tauri::command]
@@ -120,11 +169,10 @@ pub fn start_match(state: State<'_, Arc<SharedGameState>>) -> Result<String, Str
     if game.has_enough_players() {
         game.start_countdown();
         if steam_ready && is_host {
-            if let Ok(mut out) = state.outbound.lock() {
-                out.push((
-                    CHANNEL_EVENTS,
-                    serde_json::to_vec(&NetworkEvent::GameStart).unwrap_or_default(),
-                ));
+            if let Ok(bytes) = serde_json::to_vec(&NetworkEvent::GameStart) {
+                if let Ok(mut out) = state.outbound.lock() {
+                    out.push((CHANNEL_EVENTS, bytes, true));
+                }
             }
         }
         Ok("Match started".into())
@@ -208,12 +256,24 @@ pub fn steam_create_lobby(
 
 #[tauri::command]
 pub fn steam_join_lobby(
+    app: AppHandle,
     state: State<'_, Arc<SharedGameState>>,
     steam: State<'_, Option<Arc<SteamRuntime>>>,
     lobby_id: Option<u64>,
 ) -> Result<String, String> {
-    let _ = lobby_id;
-    steam_find_match(state, steam)
+    let steam = steam.inner().clone().ok_or_else(|| {
+        "Steam not available.".to_string()
+    })?;
+    if let Some(id) = lobby_id {
+        steam.accept_lobby_invite(
+            state.inner().clone(),
+            &app,
+            steamworks::LobbyId::from_raw(id),
+        );
+        return Ok(format!("Joining lobby {id}…"));
+    }
+    let shared = state.inner().clone();
+    steam.find_match(shared)
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -225,6 +285,7 @@ pub struct GameStateSnapshot {
     pub score: [u32; 2],
     pub players: Vec<PlayerSnapshot>,
     pub projectiles: Vec<ProjectileSnapshot>,
+    pub grenades: Vec<GrenadeSnapshot>,
     pub pickups: Vec<PickupSnapshot>,
     pub countdown_timer: f64,
     pub winner_id: Option<u8>,
@@ -245,9 +306,23 @@ pub struct PlayerSnapshot {
     pub direction: String,
     pub aim_angle: f64,
     pub current_weapon: String,
+    pub weapon_type: String,
+    pub skin_id: String,
     pub ammo_display: String,
     pub is_alive: bool,
     pub dash_cooldown: f64,
+    pub grenades: u32,
+    pub grenade_cooldown: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GrenadeSnapshot {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub owner_id: u8,
+    pub fuse: f64,
+    pub hot: f64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -300,9 +375,13 @@ impl GameStateSnapshot {
                     direction: dir.to_string(),
                     aim_angle: p.aim_angle,
                     current_weapon: p.current_weapon().name.clone(),
+                    weapon_type: p.current_weapon().weapon_type.as_key().to_string(),
+                    skin_id: p.skin_id.clone(),
                     ammo_display: p.current_weapon().ammo_display(),
                     is_alive: p.is_alive,
                     dash_cooldown: p.dash_cooldown,
+                    grenades: p.grenades,
+                    grenade_cooldown: p.grenade_cooldown,
                 }
             })
             .collect();
@@ -317,6 +396,20 @@ impl GameStateSnapshot {
                 dy: p.dy,
                 weapon_type: format!("{:?}", p.weapon_type),
                 owner_id: p.owner_id,
+            })
+            .collect();
+
+        let grenades = state
+            .grenades
+            .iter()
+            .filter(|g| g.active)
+            .map(|g| GrenadeSnapshot {
+                x: g.x,
+                y: g.y,
+                z: g.z,
+                owner_id: g.owner_id,
+                fuse: g.fuse,
+                hot: g.hot(),
             })
             .collect();
 
@@ -348,6 +441,7 @@ impl GameStateSnapshot {
             score: state.score,
             players,
             projectiles,
+            grenades,
             pickups,
             countdown_timer: state.countdown_timer,
             winner_id: state.winner_id,

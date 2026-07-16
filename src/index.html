@@ -5,28 +5,29 @@
   <meta name="viewport" content="width=1280, height=720" />
   <title>DUSTLINE — 1v1</title>
   <style>
+    /* Dustline UI — dusk island, clay accent, flat panels. No glass candy, no pill soup. */
     :root {
       --ink: #0c1012;
-      --paper: #f2ebe0;
+      --paper: #e8e2d6;
       --sand: #c9b896;
       --clay: #d4622e;
       --clay-deep: #9a3f16;
-      --blue: #2f7fd4;
-      --blue-deep: #1a4f8a;
+      --blue: #3a7ab8;
+      --blue-deep: #1e4a78;
       --sea: #1e4a55;
       --sea-deep: #0a1418;
-      --moss: #4f8a45;
+      --moss: #4a7a42;
       --muted: #7a7368;
       --danger: #c0392b;
-      --ok: #5cb85c;
+      --ok: #6aaa4a;
       --purple: #9b7ad4;
-      --glass: rgba(12, 16, 18, 0.78);
-      --glass-lite: rgba(22, 28, 32, 0.72);
-      --line: rgba(242, 235, 224, 0.1);
-      --line-strong: rgba(242, 235, 224, 0.18);
-      --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-      --radius: 6px;
-      --font: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+      --glass: rgba(12, 16, 18, 0.88);
+      --glass-lite: rgba(18, 22, 26, 0.9);
+      --line: rgba(232, 226, 214, 0.1);
+      --line-strong: rgba(232, 226, 214, 0.18);
+      --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      --radius: 3px;
+      --font: "Segoe UI", system-ui, sans-serif;
       --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
     }
 
@@ -37,7 +38,7 @@
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #000;
+      background: #05080a;
     }
 
     body {
@@ -55,7 +56,7 @@
       position: relative;
       overflow: hidden;
       background: #0a1216;
-      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.65);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
       flex-shrink: 0;
       transform-origin: center center;
     }
@@ -95,33 +96,30 @@
       background:
         radial-gradient(ellipse 50% 40% at 50% 0%, rgba(212, 98, 46, 0.08), transparent 60%),
         radial-gradient(ellipse 80% 50% at 50% 100%, rgba(0, 0, 0, 0.35), transparent 70%);
-      opacity: 1;
     }
 
     .screen-frame {
       position: absolute;
-      inset: 18px;
+      inset: 16px;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 2px;
       pointer-events: none;
     }
     .screen-frame::before,
     .screen-frame::after {
       content: "";
       position: absolute;
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(212, 98, 46, 0.45);
+      width: 14px;
+      height: 14px;
+      border: 1px solid rgba(212, 98, 46, 0.5);
     }
     .screen-frame::before {
       top: -1px; left: -1px;
       border-right: none; border-bottom: none;
-      border-radius: 4px 0 0 0;
     }
     .screen-frame::after {
       bottom: -1px; right: -1px;
       border-left: none; border-top: none;
-      border-radius: 0 0 4px 0;
     }
 
     .screen-content {
@@ -275,12 +273,12 @@
       align-items: center;
       gap: 10px;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-transform: none;
       color: var(--clay);
-      margin-bottom: 18px;
+      margin-bottom: 14px;
     }
     .mm-eyebrow i {
       display: block;
@@ -291,14 +289,13 @@
     }
 
     .mm-title {
-      font-size: 68px;
+      font-size: 64px;
       font-weight: 800;
-      letter-spacing: 0.14em;
-      line-height: 0.92;
+      letter-spacing: 0.06em;
+      line-height: 0.95;
       color: var(--paper);
-      text-indent: 0.14em;
-      margin: 0 0 16px;
-      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 18px 40px rgba(0, 0, 0, 0.4);
+      margin: 0 0 14px;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
     }
 
     .mm-lede {
@@ -406,11 +403,11 @@
       border-bottom: 1px solid rgba(242, 235, 224, 0.08);
     }
     .mm-panel-head strong {
-      font-size: 11px;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: none;
       color: var(--paper);
-      font-weight: 800;
+      font-weight: 700;
     }
     .mm-panel-head span {
       font-family: var(--mono);
@@ -490,17 +487,17 @@
     .menu-btn {
       appearance: none;
       position: relative;
-      border: 1px solid rgba(242, 235, 224, 0.12);
-      background: rgba(14, 18, 20, 0.88);
+      border: 1px solid rgba(232, 226, 214, 0.12);
+      background: rgba(14, 18, 20, 0.92);
       color: var(--paper);
-      font: 600 12px/1.1 var(--font);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      padding: 14px 16px;
+      font: 600 13px/1.2 var(--font);
+      letter-spacing: 0.02em;
+      text-transform: none;
+      padding: 13px 15px;
       cursor: pointer;
-      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.06s;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
       text-align: left;
-      border-radius: 2px;
+      border-radius: var(--radius);
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
     }
 
@@ -508,7 +505,7 @@
       float: right;
       font-family: var(--mono);
       font-size: 10px;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
       color: var(--muted);
       font-weight: 600;
       margin-top: 1px;
@@ -517,7 +514,7 @@
 
     .menu-btn:hover {
       background: rgba(212, 98, 46, 0.12);
-      border-color: rgba(212, 98, 46, 0.5);
+      border-color: rgba(212, 98, 46, 0.45);
       color: #fff4ea;
     }
     .menu-btn:hover .btn-hint { color: rgba(255, 220, 190, 0.7); }
@@ -528,9 +525,7 @@
       border-color: #e07a45;
       color: #1a0c06;
       font-weight: 800;
-      box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.25) inset,
-        0 8px 22px rgba(212, 98, 46, 0.22);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2) inset;
     }
     .menu-btn.primary:hover {
       background: #e07038;
@@ -541,29 +536,28 @@
 
     .menu-btn.ghost {
       background: transparent;
-      border-color: rgba(242, 235, 224, 0.1);
+      border-color: rgba(232, 226, 214, 0.1);
       color: var(--sand);
       box-shadow: none;
     }
     .menu-btn.ghost:hover {
-      border-color: rgba(242, 235, 224, 0.22);
+      border-color: rgba(232, 226, 214, 0.22);
       background: rgba(255, 255, 255, 0.03);
       color: var(--paper);
     }
 
-    /* legacy helpers used elsewhere */
     .brand { text-align: center; margin-bottom: 24px; }
     .brand h1 {
       font-size: 42px;
       font-weight: 800;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.16em;
       color: var(--paper);
-      text-indent: 0.2em;
+      text-indent: 0.16em;
       line-height: 1;
     }
     .brand-tag {
       font-size: 11px;
-      letter-spacing: 0.22em;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--sand);
       font-weight: 600;
@@ -576,7 +570,9 @@
       z-index: 2;
       text-align: center;
       font-size: 10px;
-      letter-spacing: 0.16em;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
     }
@@ -603,36 +599,39 @@
     .panel {
       background: var(--glass);
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 22px 24px;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
     }
 
     .section-title {
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: none;
       color: var(--sand);
-      margin-bottom: 8px;
-      text-align: center;
+      margin-bottom: 6px;
+      text-align: left;
+      width: 100%;
+      max-width: 720px;
     }
     .section-title strong {
       display: block;
-      font-size: 28px;
-      letter-spacing: 0.18em;
+      font-size: 24px;
+      letter-spacing: 0.02em;
       color: var(--paper);
-      margin-top: 4px;
+      margin-top: 2px;
+      font-weight: 800;
     }
 
     .section-sub {
-      text-align: center;
+      text-align: left;
       color: var(--muted);
       font-size: 13px;
-      margin-bottom: 20px;
-      max-width: 420px;
+      font-weight: 500;
+      margin-bottom: 18px;
+      max-width: 520px;
+      width: 100%;
       line-height: 1.45;
     }
 
@@ -649,11 +648,9 @@
       width: 340px;
       background: var(--glass-lite);
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: var(--radius);
       padding: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
     }
 
     .loadout-col-head {
@@ -667,11 +664,11 @@
 
     .loadout-col-head h3 {
       font-size: 11px;
-      letter-spacing: 0.2em;
+      letter-spacing: 0.14em;
       font-weight: 800;
     }
-    #loadoutP1 .loadout-col-head h3 { color: #f08a52; }
-    #loadoutP2 .loadout-col-head h3 { color: #6aa8ef; }
+    #loadoutP1 .loadout-col-head h3 { color: #e88855; }
+    #loadoutP2 .loadout-col-head h3 { color: #6aa0d4; }
 
     .loadout-badge {
       font-size: 9px;
@@ -703,17 +700,15 @@
     .weapon-card {
       appearance: none;
       border: 1px solid var(--line);
-      background: rgba(8, 12, 14, 0.45);
+      background: rgba(8, 12, 14, 0.55);
       color: var(--sand);
       text-align: left;
       padding: 10px 11px 12px;
       cursor: pointer;
-      border-radius: 8px;
+      border-radius: var(--radius);
       font: 600 11px/1.35 var(--font);
-      transition: border-color 0.12s, background 0.12s, transform 0.08s, box-shadow 0.12s;
+      transition: border-color 0.12s, background 0.12s;
       min-height: 92px;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
     }
     .weapon-card .w-preview {
       display: block;
@@ -727,16 +722,16 @@
       display: block;
       color: var(--paper);
       font-size: 13px;
-      letter-spacing: 0.08em;
-      font-weight: 800;
+      letter-spacing: 0.02em;
+      font-weight: 700;
       margin-bottom: 4px;
     }
     .weapon-card .w-desc {
       display: block;
       color: var(--muted);
-      font-size: 10px;
-      letter-spacing: 0.04em;
-      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0;
+      font-weight: 500;
       line-height: 1.3;
     }
     .weapon-card .w-stat {
@@ -744,25 +739,25 @@
       margin-top: 6px;
       font-family: var(--mono);
       font-size: 9px;
-      color: rgba(201, 184, 150, 0.7);
-      letter-spacing: 0.04em;
+      color: rgba(201, 184, 150, 0.65);
+      letter-spacing: 0.02em;
     }
     .weapon-card:hover {
       border-color: rgba(212, 98, 46, 0.4);
-      transform: translateY(-1px);
+      background: rgba(20, 16, 14, 0.7);
     }
     .weapon-card.selected {
       border-color: var(--clay);
-      background: linear-gradient(160deg, rgba(212, 98, 46, 0.22), rgba(20, 14, 10, 0.6));
-      box-shadow: 0 0 0 1px rgba(212, 98, 46, 0.2), 0 6px 16px rgba(212, 98, 46, 0.12);
+      background: rgba(212, 98, 46, 0.12);
+      box-shadow: inset 2px 0 0 var(--clay);
       color: var(--paper);
     }
     .weapon-card.selected .w-desc { color: var(--sand); }
-    #loadoutP2 .weapon-card:hover { border-color: rgba(47, 127, 212, 0.45); }
+    #loadoutP2 .weapon-card:hover { border-color: rgba(58, 111, 160, 0.45); }
     #loadoutP2 .weapon-card.selected {
       border-color: var(--blue);
-      background: linear-gradient(160deg, rgba(47, 127, 212, 0.22), rgba(10, 16, 24, 0.6));
-      box-shadow: 0 0 0 1px rgba(47, 127, 212, 0.2), 0 6px 16px rgba(47, 127, 212, 0.12);
+      background: rgba(58, 111, 160, 0.12);
+      box-shadow: inset 2px 0 0 var(--blue);
     }
 
     .skin-picker {
@@ -771,9 +766,9 @@
       border-top: 1px solid var(--line);
     }
     .skin-picker-label {
-      font-size: 9px;
-      letter-spacing: 0.22em;
-      font-weight: 800;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      font-weight: 600;
       color: var(--muted);
       margin-bottom: 8px;
     }
@@ -973,12 +968,10 @@
       padding: 0;
       background: var(--glass);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
       overflow: hidden;
-      transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s;
+      transition: border-color 0.15s, opacity 0.2s;
     }
 
     #player1Hud { border-top: 2px solid var(--clay); }
@@ -987,7 +980,7 @@
     #p2AmmoPanel { border-top: 2px solid var(--blue); }
 
     .player-hud.low-hp {
-      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(192, 57, 43, 0.35);
+      border-color: rgba(192, 57, 43, 0.45);
     }
     .player-hud.dead {
       opacity: 0.55;
@@ -1007,56 +1000,47 @@
     }
 
     .player-name {
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.16em;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
       display: flex;
       align-items: center;
       gap: 7px;
     }
     #player1Hud .player-name,
-    #p1AmmoPanel .player-name { color: #f08a52; }
+    #p1AmmoPanel .player-name { color: #e07a48; }
     #player2Hud .player-name,
-    #p2AmmoPanel .player-name { color: #6aa8ef; }
+    #p2AmmoPanel .player-name { color: #6a98c4; }
 
     .player-name .status-dot {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--ok);
-      box-shadow: 0 0 8px rgba(92, 184, 92, 0.55);
       flex-shrink: 0;
     }
     .player-hud.low-hp .status-dot {
-      background: #e74c3c;
-      box-shadow: 0 0 8px rgba(231, 76, 60, 0.55);
-      animation: hpPulse 0.7s ease-in-out infinite;
+      background: #c0392b;
     }
     .player-hud.dead .status-dot {
       background: var(--muted);
-      box-shadow: none;
-      animation: none;
-    }
-    @keyframes hpPulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.55; transform: scale(0.85); }
     }
 
     .health-text {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       font-family: var(--mono);
       color: var(--paper);
       line-height: 1;
     }
-    .player-hud.low-hp .health-text { color: #ff8a7a; }
+    .player-hud.low-hp .health-text { color: #e07060; }
     .player-hud.dead .health-text { color: var(--muted); }
 
     .health-bar-container {
       width: 100%;
-      height: 11px;
-      background: rgba(0, 0, 0, 0.5);
+      height: 8px;
+      background: rgba(0, 0, 0, 0.45);
       border-radius: 99px;
       overflow: hidden;
       margin-bottom: 0;
@@ -1067,10 +1051,9 @@
     .health-bar {
       height: 100%;
       width: 100%;
-      border-radius: 99px;
-      background: linear-gradient(90deg, var(--clay-deep), var(--clay), #f08a52);
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--clay-deep), var(--clay));
       transition: width 0.12s ease-out, background 0.2s;
-      box-shadow: 0 0 10px rgba(212, 98, 46, 0.35);
       position: relative;
     }
     .health-bar::after {
@@ -1083,12 +1066,10 @@
       pointer-events: none;
     }
     #player2Hud .health-bar {
-      background: linear-gradient(90deg, var(--blue-deep), var(--blue), #6aa8ef);
-      box-shadow: 0 0 10px rgba(47, 127, 212, 0.35);
+      background: linear-gradient(90deg, var(--blue-deep), var(--blue));
     }
     .player-hud.low-hp .health-bar {
-      background: linear-gradient(90deg, #7a1a12, #c0392b, #e74c3c) !important;
-      box-shadow: 0 0 12px rgba(231, 76, 60, 0.45) !important;
+      background: linear-gradient(90deg, #7a1a12, #c0392b) !important;
     }
 
     /* Ammo panel (bottom right) */
@@ -1097,14 +1078,14 @@
 
     .weapon-name {
       font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
+      font-weight: 700;
+      letter-spacing: 0.08em;
       color: var(--muted);
       text-transform: uppercase;
     }
     .weapon-ammo {
       display: block;
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 800;
       font-family: var(--mono);
       font-variant-numeric: tabular-nums;
@@ -1142,13 +1123,11 @@
       font-family: var(--mono);
       letter-spacing: 0.02em;
       color: var(--sand);
-      background: rgba(0, 0, 0, 0.28);
+      background: rgba(0, 0, 0, 0.3);
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 2px;
       padding: 4px 7px;
       min-height: 24px;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
     }
     .hud-chip .chip-label {
       font-size: 8px;
@@ -1201,11 +1180,9 @@
       padding: 10px 22px 11px;
       background: var(--glass);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--radius);
       min-width: 200px;
       box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
     }
 
     .score-row {
@@ -1220,11 +1197,11 @@
       letter-spacing: 0.1em;
       min-width: 22px;
     }
-    .score-side.p1 { color: #f08a52; text-align: right; }
-    .score-side.p2 { color: #6aa8ef; text-align: left; }
+    .score-side.p1 { color: #e88855; text-align: right; }
+    .score-side.p2 { color: #6aa0d4; text-align: left; }
 
     #scoreText {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 800;
       letter-spacing: 0.06em;
       font-variant-numeric: tabular-nums;
@@ -1263,16 +1240,14 @@
       left: 14px;
       min-width: 150px;
       font-size: 10px;
-      letter-spacing: 0.1em;
-      font-weight: 800;
-      color: #d2c0f5;
-      background: linear-gradient(145deg, rgba(32, 20, 48, 0.78), rgba(14, 12, 22, 0.72));
-      border: 1px solid rgba(170, 110, 255, 0.28);
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #e8c0a0;
+      background: var(--glass);
+      border: 1px solid rgba(212, 98, 46, 0.28);
       padding: 9px 12px 10px;
-      border-radius: 10px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       font-family: var(--mono);
       display: flex;
       flex-direction: column;
@@ -1281,7 +1256,7 @@
     #zoneInfo.shrinking {
       color: #f0b0a0;
       border-color: rgba(220, 100, 80, 0.4);
-      background: linear-gradient(145deg, rgba(60, 20, 18, 0.82), rgba(28, 12, 12, 0.75));
+      background: rgba(40, 16, 14, 0.9);
     }
     .zone-top {
       display: flex;
@@ -1290,16 +1265,14 @@
     }
     .zone-top::before {
       content: "";
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
-      background: var(--purple);
-      box-shadow: 0 0 8px var(--purple);
+      background: var(--clay);
       flex-shrink: 0;
     }
     #zoneInfo.shrinking .zone-top::before {
       background: #e07050;
-      box-shadow: 0 0 8px rgba(224, 112, 80, 0.6);
       animation: hpPulse 0.8s ease-in-out infinite;
     }
     #zoneLabel { flex: 1; }
@@ -1318,8 +1291,8 @@
       display: block;
       height: 100%;
       width: 100%;
-      border-radius: 99px;
-      background: linear-gradient(90deg, #6a4a9a, #b090f0);
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--clay-deep), var(--clay));
       transition: width 0.25s linear;
     }
     #zoneInfo.shrinking .zone-bar > span {
@@ -1333,41 +1306,34 @@
       font-size: 9px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: rgba(201, 184, 150, 0.55);
+      color: var(--muted);
       font-weight: 700;
       background: var(--glass);
       border: 1px solid var(--line);
       padding: 7px 10px;
-      border-radius: 8px;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius);
     }
 
     .hud-fs-btn {
       position: absolute;
       top: 14px;
       right: 14px;
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius);
       border: 1px solid var(--line);
       background: var(--glass);
       color: var(--sand);
-      font-size: 15px;
+      font-size: 14px;
       cursor: pointer;
       pointer-events: auto;
       display: grid;
       place-items: center;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      transition: border-color 0.12s, color 0.12s, background 0.12s;
+      transition: border-color 0.12s, color 0.12s;
     }
     .hud-fs-btn:hover {
       border-color: rgba(212, 98, 46, 0.45);
       color: var(--paper);
-      background: rgba(212, 98, 46, 0.12);
     }
 
     /* —— Overlays —— */
@@ -1381,9 +1347,7 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      background: rgba(6, 10, 12, 0.72);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      background: rgba(6, 10, 12, 0.78);
       z-index: 20;
     }
     #countdownOverlay.active,
@@ -1392,27 +1356,27 @@
     #controlsOverlay.active { display: flex; }
 
     #countdownText {
-      font-size: 128px;
+      font-size: 96px;
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       color: var(--paper);
-      text-shadow: 0 10px 0 rgba(0, 0, 0, 0.3), 0 0 40px rgba(212, 98, 46, 0.25);
+      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
       font-family: var(--mono);
       line-height: 1;
     }
     #countdownSub {
       margin-top: 8px;
-      font-size: 11px;
-      letter-spacing: 0.28em;
+      font-size: 13px;
+      letter-spacing: 0.04em;
       color: var(--sand);
-      font-weight: 700;
-      text-transform: uppercase;
+      font-weight: 600;
+      text-transform: none;
     }
 
     .overlay-card {
       background: var(--glass);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--radius);
       padding: 32px 36px;
       box-shadow: var(--shadow);
       text-align: center;
@@ -1421,9 +1385,9 @@
     }
 
     .overlay-card h2 {
-      font-size: 36px;
+      font-size: 28px;
       font-weight: 800;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.02em;
       color: var(--paper);
       margin-bottom: 10px;
     }
@@ -1431,7 +1395,8 @@
     .overlay-card p {
       color: var(--sand);
       margin-bottom: 24px;
-      font-size: 15px;
+      font-size: 14px;
+      font-weight: 500;
       line-height: 1.4;
     }
 
@@ -1664,10 +1629,10 @@
 
           <div class="mm-ui">
             <div class="mm-left">
-              <div class="mm-eyebrow"><i></i> Island · 1v1 · Live fire</div>
-              <h1 class="mm-title">DUSTLINE</h1>
+              <div class="mm-eyebrow"><i></i>1v1 island duel</div>
+              <h1 class="mm-title">Dustline</h1>
               <p class="mm-lede">
-                Two operators. One shrinking ring. First to three rounds walks off the island.
+                Two operators. One shrinking ring. First to three walks off the island.
               </p>
               <div class="mm-stats">
                 <div class="mm-stat"><b>Bo5</b><span>First to 3</span></div>
@@ -1728,8 +1693,8 @@
       <div class="screen-bg"></div>
       <div class="screen-frame"></div>
       <div class="screen-content">
-        <div class="section-title">Prepare <strong>LOADOUT</strong></div>
-        <p class="section-sub">Pick a primary + skin. Each weapon has its own model. Pistol stays secondary.</p>
+        <div class="section-title">Before the fight <strong>Loadout</strong></div>
+        <p class="section-sub">Choose a primary and a finish. Pistol stays secondary.</p>
         <div class="loadout-columns" id="loadoutColumns">
           <div class="loadout-col" id="loadoutP1">
             <div class="loadout-col-head">

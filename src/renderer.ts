@@ -1,4 +1,5 @@
-// === DUSTLINE Renderer — Zombs-Royale-inspired cartoon art ===
+// === DUSTLINE Renderer ===
+// Design: late-day island firefight. Six hues. Readability first. No neon, no candy.
 
 import {
   GameState,
@@ -18,39 +19,42 @@ import {
   getOverlayParticles,
 } from './combatFx';
 
-/** Zombs-like: bright flat colors, thick outlines, cartoon arena */
 const C = {
-  void: '#5ec8f0',
-  waterDeep: '#2a9fd4',
-  water: '#4eb8e8',
-  waterLite: '#7ad0f5',
-  foam: 'rgba(255, 255, 255, 0.45)',
-  sand: '#f0d878',
-  sandDark: '#d4b84a',
-  sandLite: '#ffe99a',
-  grass: '#6ecf4a',
-  grassDark: '#4aad32',
-  grassLite: '#8fe35e',
-  dirt: 'rgba(196, 160, 80, 0.35)',
-  crate: '#c9a04a',
-  crateLite: '#e8c86a',
-  crateDark: '#8a6a28',
-  rock: '#9a9aa8',
-  rockLite: '#c0c0cc',
-  rockDark: '#6a6a78',
-  bush: '#2e9a3c',
-  bushLite: '#4ecf5a',
-  p1: '#ff5a3c',
-  p1Dark: '#c43020',
-  p1Lite: '#ff8a70',
-  p2: '#3c8cff',
-  p2Dark: '#1a58c8',
-  p2Lite: '#7ab0ff',
-  zoneFill: 'rgba(40, 120, 220, 0.18)',
-  zoneEdge: 'rgba(80, 180, 255, 0.95)',
-  cream: '#ffffff',
-  ink: '#1a1a22',
-  outline: '#1a1a22',
+  // Atmosphere
+  void: '#081018',
+  waterDeep: '#0c2430',
+  water: '#163848',
+  waterLite: '#245868',
+  foam: 'rgba(190, 210, 200, 0.1)',
+  // Terrain
+  sand: '#b89a62',
+  sandDark: '#8f7848',
+  sandLite: '#d0b478',
+  grass: '#3f6b38',
+  grassDark: '#2c4e28',
+  grassLite: '#528a48',
+  dirt: 'rgba(120, 95, 55, 0.35)',
+  // Props
+  crate: '#7d6234',
+  crateLite: '#a88448',
+  crateDark: '#524020',
+  rock: '#5e5a56',
+  rockLite: '#7c7872',
+  rockDark: '#3e3c38',
+  bush: '#264e30',
+  bushLite: '#3a6e44',
+  // Operators — warm clay vs cool steel (never pure red/blue neon)
+  p1: '#c85a28',
+  p1Dark: '#8a3a14',
+  p1Lite: '#e07a48',
+  p2: '#3a6fa0',
+  p2Dark: '#1e4568',
+  p2Lite: '#6a98c4',
+  // Storm = dust wall, not purple sci-fi
+  zoneFill: 'rgba(28, 22, 16, 0.38)',
+  zoneEdge: 'rgba(200, 120, 60, 0.7)',
+  cream: '#e6e0d4',
+  ink: '#0e1216',
 };
 
 const BASE_ZOOM = 1.55;
@@ -109,78 +113,101 @@ function buildIslandTexture(): void {
   islandCanvas.width = ARENA_W;
   islandCanvas.height = ARENA_H;
   const g = islandCanvas.getContext('2d')!;
-  const rnd = seeded(77);
+  const rnd = seeded(91);
 
-  // Bright cartoon sky / water (Zombs-style day map)
+  // Deep void
   g.fillStyle = C.void;
   g.fillRect(0, 0, ARENA_W, ARENA_H);
 
-  g.fillStyle = C.water;
-  g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, 500, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = C.waterLite;
-  g.beginPath();
-  g.arc(ISLAND_CX - 20, ISLAND_CY - 30, 280, 0, Math.PI * 2);
-  g.fill();
+  // Water basin — quiet, late day
+  const water = g.createRadialGradient(ISLAND_CX, ISLAND_CY, 120, ISLAND_CX, ISLAND_CY, 500);
+  water.addColorStop(0, C.waterLite);
+  water.addColorStop(0.4, C.water);
+  water.addColorStop(0.78, C.waterDeep);
+  water.addColorStop(1, C.void);
+  g.fillStyle = water;
+  g.fillRect(0, 0, ARENA_W, ARENA_H);
 
-  // Foam ring
-  g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 22, 0, Math.PI * 2);
+  // Thin foam
   g.strokeStyle = C.foam;
-  g.lineWidth = 8;
-  g.stroke();
-
-  // Sand rim (flat)
-  g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 14, 0, Math.PI * 2);
-  g.fillStyle = C.sand;
-  g.fill();
-  g.strokeStyle = C.outline;
-  g.lineWidth = 3.5;
-  g.stroke();
-
-  // Grass disc — flat bright green
-  g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R - 12, 0, Math.PI * 2);
-  g.fillStyle = C.grass;
-  g.fill();
-  g.strokeStyle = C.outline;
-  g.lineWidth = 3;
-  g.stroke();
-
-  // Checker-ish grass blobs (cartoon patches)
-  for (let i = 0; i < 80; i++) {
-    const a = rnd() * Math.PI * 2;
-    const rr = Math.sqrt(rnd()) * (ISLAND_R - 40);
-    const x = ISLAND_CX + Math.cos(a) * rr;
-    const y = ISLAND_CY + Math.sin(a) * rr;
-    g.fillStyle = rnd() > 0.5 ? C.grassLite : C.grassDark;
+  g.lineWidth = 2;
+  for (const r of [370, 400, 430]) {
     g.beginPath();
-    g.ellipse(x, y, 10 + rnd() * 18, 8 + rnd() * 14, rnd() * Math.PI, 0, Math.PI * 2);
-    g.fill();
+    g.arc(ISLAND_CX + 4, ISLAND_CY - 2, r, 0, Math.PI * 2);
+    g.stroke();
   }
 
-  // Dirt paths
-  g.strokeStyle = '#c4a050';
-  g.lineWidth = 28;
-  g.lineCap = 'round';
+  // Sand shelf
   g.beginPath();
-  g.moveTo(230, 360);
-  g.quadraticCurveTo(640, 300, 1050, 360);
-  g.stroke();
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 11, 0, Math.PI * 2);
+  g.fillStyle = C.sand;
+  g.fill();
+  // Warm highlight on sand (sun from NW)
   g.beginPath();
-  g.moveTo(640, 170);
-  g.quadraticCurveTo(600, 360, 640, 550);
-  g.stroke();
-  g.strokeStyle = C.outline;
-  g.lineWidth = 2.5;
-  g.globalAlpha = 0.25;
-  g.beginPath();
-  g.moveTo(230, 360);
-  g.quadraticCurveTo(640, 300, 1050, 360);
+  g.arc(ISLAND_CX - 28, ISLAND_CY - 36, ISLAND_R - 2, -1.0, 0.7);
+  g.strokeStyle = C.sandLite;
+  g.lineWidth = 9;
+  g.globalAlpha = 0.28;
   g.stroke();
   g.globalAlpha = 1;
+
+  // Interior grass
+  g.beginPath();
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R - 15, 0, Math.PI * 2);
+  const grass = g.createRadialGradient(
+    ISLAND_CX - 50, ISLAND_CY - 60, 30,
+    ISLAND_CX, ISLAND_CY, ISLAND_R - 10
+  );
+  grass.addColorStop(0, C.grassLite);
+  grass.addColorStop(0.5, C.grass);
+  grass.addColorStop(1, C.grassDark);
+  g.fillStyle = grass;
+  g.fill();
+
+  // Sparse dry patches — fewer, larger, more intentional
+  for (let i = 0; i < 90; i++) {
+    const a = rnd() * Math.PI * 2;
+    const rr = Math.sqrt(rnd()) * (ISLAND_R - 42);
+    g.fillStyle = rnd() > 0.55 ? C.grassDark : C.grassLite;
+    g.globalAlpha = 0.18 + rnd() * 0.22;
+    g.beginPath();
+    g.ellipse(
+      ISLAND_CX + Math.cos(a) * rr,
+      ISLAND_CY + Math.sin(a) * rr,
+      8 + rnd() * 18,
+      5 + rnd() * 12,
+      a,
+      0,
+      Math.PI * 2
+    );
+    g.fill();
+  }
+  g.globalAlpha = 1;
+
+  // Cross paths — worn dirt, not neon
+  g.strokeStyle = C.dirt;
+  g.lineWidth = 22;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(240, 360);
+  g.quadraticCurveTo(640, 305, 1040, 360);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(640, 180);
+  g.quadraticCurveTo(605, 360, 640, 540);
+  g.stroke();
+
+  // Hard sand edge
+  g.beginPath();
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 0.5, 0, Math.PI * 2);
+  g.strokeStyle = C.sandDark;
+  g.lineWidth = 3;
+  g.stroke();
+  g.beginPath();
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R - 14.5, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(20, 40, 20, 0.2)';
+  g.lineWidth = 2;
+  g.stroke();
 }
 
 function buildPropLayer(): void {
@@ -214,47 +241,46 @@ function roundRectPath(
 }
 
 function drawCrate(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  g.fillStyle = 'rgba(0,0,0,0.2)';
-  roundRectPath(g, x + 3, y + 4, w, h, 6);
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  roundRectPath(g, x + 2, y + 3, w, h, 3);
   g.fill();
-  g.fillStyle = C.crate;
-  roundRectPath(g, x, y, w, h, 6);
+  const grad = g.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, C.crateLite);
+  grad.addColorStop(1, C.crateDark);
+  g.fillStyle = grad;
+  roundRectPath(g, x, y, w, h, 3);
   g.fill();
-  g.strokeStyle = C.outline;
-  g.lineWidth = 2.5;
-  g.stroke();
-  g.fillStyle = C.crateLite;
-  g.fillRect(x + 4, y + 4, w - 8, 5);
-  g.strokeStyle = C.crateDark;
-  g.lineWidth = 2;
+  g.strokeStyle = 'rgba(30, 22, 12, 0.55)';
+  g.lineWidth = 1.5;
+  g.strokeRect(x + 4, y + 4, w - 8, h - 8);
   g.beginPath();
-  g.moveTo(x + 8, y + 8);
-  g.lineTo(x + w - 8, y + h - 8);
-  g.moveTo(x + w - 8, y + 8);
-  g.lineTo(x + 8, y + h - 8);
+  g.moveTo(x + 7, y + 7);
+  g.lineTo(x + w - 7, y + h - 7);
+  g.moveTo(x + w - 7, y + 7);
+  g.lineTo(x + 7, y + h - 7);
   g.stroke();
 }
 
 function drawRock(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  g.fillStyle = 'rgba(0,0,0,0.18)';
-  roundRectPath(g, x + 3, y + 4, w, h, 12);
+  g.fillStyle = 'rgba(0,0,0,0.2)';
+  roundRectPath(g, x + 2, y + 3, w, h, 7);
   g.fill();
-  g.fillStyle = C.rock;
-  roundRectPath(g, x, y, w, h, 12);
+  const grad = g.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, C.rockLite);
+  grad.addColorStop(1, C.rockDark);
+  g.fillStyle = grad;
+  roundRectPath(g, x, y, w, h, 7);
   g.fill();
-  g.strokeStyle = C.outline;
-  g.lineWidth = 2.5;
-  g.stroke();
-  g.fillStyle = C.rockLite;
+  g.fillStyle = 'rgba(255,255,255,0.1)';
   g.beginPath();
-  g.ellipse(x + w * 0.35, y + h * 0.3, w * 0.18, h * 0.12, -0.3, 0, Math.PI * 2);
+  g.ellipse(x + w * 0.35, y + h * 0.28, w * 0.18, h * 0.1, -0.3, 0, Math.PI * 2);
   g.fill();
 }
 
 function drawBush(g: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number): void {
-  g.fillStyle = 'rgba(0,0,0,0.15)';
+  g.fillStyle = 'rgba(0,0,0,0.14)';
   g.beginPath();
-  g.ellipse(cx + 1, cy + 5, w / 2, h / 2.5, 0, 0, Math.PI * 2);
+  g.ellipse(cx + 1, cy + 4, w / 2, h / 2.5, 0, 0, Math.PI * 2);
   g.fill();
   const blobs = [
     [0, 0, 0.55],
@@ -263,16 +289,15 @@ function drawBush(g: CanvasRenderingContext2D, cx: number, cy: number, w: number
     [0.05, -0.28, 0.32],
   ];
   for (const [ox, oy, s] of blobs) {
-    g.fillStyle = C.bush;
+    const grad = g.createRadialGradient(
+      cx + ox * w - 2, cy + oy * h - 2, 1,
+      cx + ox * w, cy + oy * h, (w * s) / 1.2
+    );
+    grad.addColorStop(0, C.bushLite);
+    grad.addColorStop(1, C.bush);
+    g.fillStyle = grad;
     g.beginPath();
     g.ellipse(cx + ox * w, cy + oy * h, (w * s) / 1.1, (h * s) / 1.1, 0, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = C.outline;
-    g.lineWidth = 2;
-    g.stroke();
-    g.fillStyle = C.bushLite;
-    g.beginPath();
-    g.ellipse(cx + ox * w - 2, cy + oy * h - 2, (w * s) / 3, (h * s) / 3.5, 0, 0, Math.PI * 2);
     g.fill();
   }
 }
@@ -560,7 +585,14 @@ export function setParticles(p: Particle[]): void {
 }
 
 export function setScreenShake(amount: number): void {
-  shake = amount;
+  shake = Math.max(shake, amount);
+}
+
+/** Decay residual shake each frame (online path has no engine decay). */
+export function tickScreenShake(dt: number): void {
+  if (shake > 0) {
+    shake = Math.max(0, shake - dt * 9.5);
+  }
 }
 
 function updateCamera(dt: number, state: GameState): void {
@@ -601,6 +633,7 @@ export function render(deltaTime: number): void {
   if (!ctx || !nextState) return;
   time += deltaTime;
   updateCombatFx(deltaTime);
+  tickScreenShake(deltaTime);
   updateCamera(deltaTime, nextState);
 
   ctx.fillStyle = C.void;
@@ -654,13 +687,12 @@ export function render(deltaTime: number): void {
 }
 
 function drawVignette(): void {
-  // Soft bright vignette — keep map feeling open like Zombs
   const g = ctx.createRadialGradient(
-    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.35,
-    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.85
+    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.28,
+    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.78
   );
   g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(1, 'rgba(20, 60, 90, 0.12)');
+  g.addColorStop(1, 'rgba(6, 10, 14, 0.42)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
 }
@@ -739,18 +771,16 @@ function drawAimCursor(): void {
   const cx = ARENA_W / 2;
   const cy = ARENA_H / 2;
   ctx.save();
-  ctx.strokeStyle = 'rgba(26,26,34,0.55)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.strokeStyle = 'rgba(232, 226, 214, 0.35)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 5, cy);
-  ctx.moveTo(cx + 5, cy); ctx.lineTo(cx + 14, cy);
-  ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy - 5);
-  ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + 14);
+  ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy); ctx.lineTo(cx - 5, cy);
+  ctx.moveTo(cx + 5, cy); ctx.lineTo(cx + 12, cy);
+  ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy - 5);
+  ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + 12);
   ctx.stroke();
   ctx.restore();
 }
@@ -767,42 +797,26 @@ function drawZone(state: GameState): void {
   ctx.fillStyle = C.zoneFill;
   ctx.fill('evenodd');
 
-  // Outer glow
-  ctx.beginPath();
-  ctx.arc(zx, zy, zr, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(140, 80, 220, 0.2)';
-  ctx.lineWidth = 10 / camZoom;
-  ctx.stroke();
-
-  // Animated edge
   ctx.beginPath();
   ctx.arc(zx, zy, zr, 0, Math.PI * 2);
   ctx.strokeStyle = C.zoneEdge;
-  ctx.lineWidth = 2.5 / camZoom;
-  ctx.setLineDash([12 / camZoom, 10 / camZoom]);
-  ctx.lineDashOffset = -time * 40;
+  ctx.lineWidth = 2 / camZoom;
   ctx.stroke();
-  ctx.setLineDash([]);
 
-  // Sparkle ticks on zone rim
-  const ticks = 18;
-  for (let i = 0; i < ticks; i++) {
-    const a = (i / ticks) * Math.PI * 2 + time * 0.4;
-    const px = zx + Math.cos(a) * zr;
-    const py = zy + Math.sin(a) * zr;
-    const pulse = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(time * 3 + i));
-    ctx.fillStyle = `rgba(200, 160, 255, ${0.25 * pulse})`;
-    ctx.beginPath();
-    ctx.arc(px, py, 2 / camZoom, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.beginPath();
+  ctx.arc(zx, zy, zr, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(180, 100, 50, 0.15)';
+  ctx.lineWidth = 6 / camZoom;
+  ctx.stroke();
 
   if (state.zone_target_radius && state.zone_target_radius < zr - 2) {
     ctx.beginPath();
     ctx.arc(zx, zy, state.zone_target_radius, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(160, 100, 255, 0.22)';
-    ctx.lineWidth = 1.5 / camZoom;
+    ctx.strokeStyle = 'rgba(230, 220, 200, 0.22)';
+    ctx.lineWidth = 1.25 / camZoom;
+    ctx.setLineDash([8 / camZoom, 6 / camZoom]);
     ctx.stroke();
+    ctx.setLineDash([]);
   }
   ctx.restore();
 }
@@ -819,53 +833,65 @@ function drawPlayer(player: PlayerSnapshot): void {
 
   if (!player.is_alive) {
     ctx.save();
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.45;
     ctx.strokeStyle = dark;
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(cx - 8, cy - 8);
-    ctx.lineTo(cx + 8, cy + 8);
-    ctx.moveTo(cx + 8, cy - 8);
-    ctx.lineTo(cx - 8, cy + 8);
+    ctx.moveTo(cx - 7, cy - 7);
+    ctx.lineTo(cx + 7, cy + 7);
+    ctx.moveTo(cx + 7, cy - 7);
+    ctx.lineTo(cx - 7, cy + 7);
     ctx.stroke();
-    // Ground stain
-    ctx.fillStyle = 'rgba(100, 30, 30, 0.25)';
+    ctx.fillStyle = 'rgba(60, 20, 16, 0.4)';
     ctx.beginPath();
-    ctx.ellipse(cx, cy + 6, 12, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy + 5, 11, 4.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     return;
   }
 
-  // Soft contact shadow
+  // Contact shadow
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(cx + 1, cy + 10, size / 2.1, size / 3.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 1, cy + 10, size / 2.2, size / 3.8, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Body
-  const bodyGrad = ctx.createRadialGradient(cx - 4, cy - 5, 2, cx, cy, size / 2);
+  // Armor body — soft volume, no cartoon rim
+  const bodyGrad = ctx.createRadialGradient(cx - 3.5, cy - 4.5, 1.5, cx, cy, size / 2);
   bodyGrad.addColorStop(0, lite);
-  bodyGrad.addColorStop(0.55, body);
+  bodyGrad.addColorStop(0.5, body);
   bodyGrad.addColorStop(1, dark);
   ctx.fillStyle = bodyGrad;
   ctx.beginPath();
   ctx.arc(cx, cy, size / 2 - 0.5, 0, Math.PI * 2);
   ctx.fill();
-
-  // Rim
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(8, 10, 14, 0.4)';
+  ctx.lineWidth = 1.25;
   ctx.stroke();
 
-  // Face plate
+  // Helmet / face plate
   ctx.fillStyle = dark;
   ctx.beginPath();
-  ctx.arc(cx, cy, size / 3.3, 0, Math.PI * 2);
+  ctx.arc(cx, cy, size / 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Weapon model (unique silhouette per type + skin palette)
+  // Visor slit toward aim
+  const vx = cx + Math.cos(angle) * 3.2;
+  const vy = cy + Math.sin(angle) * 3.2;
+  ctx.fillStyle = 'rgba(20, 28, 32, 0.85)';
+  ctx.beginPath();
+  ctx.ellipse(vx, vy, 4.2, 1.6, angle, 0, Math.PI * 2);
+  ctx.fill();
+  // Visor glint
+  ctx.fillStyle = lite;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.arc(vx + Math.cos(angle) * 1.2, vy + Math.sin(angle) * 1.2, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Weapon
   const wType = normalizeWeaponType(player.weapon_type ?? player.current_weapon);
   const skin = getSkin(player.skin_id);
   ctx.save();
@@ -874,42 +900,23 @@ function drawPlayer(player: PlayerSnapshot): void {
   drawWeaponModel(ctx, wType, skin);
   ctx.restore();
 
-  // Eye
-  ctx.fillStyle = C.cream;
-  ctx.beginPath();
-  ctx.arc(cx + Math.cos(angle) * 5.5, cy + Math.sin(angle) * 5.5, 2.4, 0, Math.PI * 2);
-  ctx.fill();
-
-  // HP bar
+  // World HP — thin, readable, not arcade chunky
   const hp = Math.max(0, player.health / player.max_health);
-  const bw = 32;
-  const bh = 4;
+  const bw = 28;
+  const bh = 3;
   const bx = cx - bw / 2;
-  const by = player.y - 11;
+  const by = player.y - 9;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  roundRectPath(ctx, bx - 1, by - 1, bw + 2, bh + 2, 2);
-  ctx.fill();
-  const hpGrad = ctx.createLinearGradient(bx, by, bx + bw, by);
-  if (hp > 0.5) {
-    hpGrad.addColorStop(0, '#5cb85c');
-    hpGrad.addColorStop(1, '#7fd67f');
-  } else if (hp > 0.25) {
-    hpGrad.addColorStop(0, '#d4a017');
-    hpGrad.addColorStop(1, '#e8c040');
-  } else {
-    hpGrad.addColorStop(0, '#c0392b');
-    hpGrad.addColorStop(1, '#e74c3c');
-  }
-  ctx.fillStyle = hpGrad;
+  ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+  ctx.fillStyle = hp > 0.4 ? '#5a9a48' : hp > 0.2 ? '#b89428' : '#b03828';
   ctx.fillRect(bx, by, bw * hp, bh);
 
-  // Tag
-  ctx.font = 'bold 9px "Segoe UI", system-ui, sans-serif';
+  ctx.font = '600 8px "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillText(isP1 ? 'P1' : 'P2', cx + 0.5, by - 3.5);
-  ctx.fillStyle = isP1 ? C.p1Lite : C.p2Lite;
-  ctx.fillText(isP1 ? 'P1' : 'P2', cx, by - 4);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillText(isP1 ? 'P1' : 'P2', cx + 0.5, by - 3);
+  ctx.fillStyle = lite;
+  ctx.fillText(isP1 ? 'P1' : 'P2', cx, by - 3.5);
 }
 
 function drawGrenades(grenades: GrenadeSnapshot[]): void {
@@ -1225,4 +1232,3 @@ export function clearCanvas(): void {
     nextState = null;
   }
 }
-                                                                               

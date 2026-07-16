@@ -92,8 +92,15 @@ export function initUI(): void {
   });
   bind('btnRematch', () => {
     hideEndOverlay();
-    loadoutMode = 'local';
-    showLoadout(true);
+    // Keep previous mode: online → re-queue, local/bot → loadout
+    if (loadoutMode === 'online') {
+      showLoadout(false);
+    } else if (loadoutMode === 'bot') {
+      showLoadout(false);
+    } else {
+      loadoutMode = 'local';
+      showLoadout(true);
+    }
   });
 
   buildLoadoutCards();

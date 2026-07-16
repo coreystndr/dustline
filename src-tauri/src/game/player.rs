@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::grenade::{GRENADE_COOLDOWN, GRENADE_START};
 use super::weapons::{Weapon, WeaponType};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -54,11 +55,15 @@ pub struct Player {
     pub dash_cooldown: f64,
     pub dash_timer: f64,
     pub invuln: f64,
+    pub primary_loadout: WeaponType,
+    pub skin_id: String,
+    pub grenades: u32,
+    pub grenade_cooldown: f64,
 }
 
 impl Player {
     pub fn new(id: u8, x: f64, y: f64) -> Self {
-        Self {
+        let mut p = Self {
             id,
             x,
             y,
@@ -81,7 +86,29 @@ impl Player {
             dash_cooldown: 0.0,
             dash_timer: 0.0,
             invuln: 0.0,
+            primary_loadout: WeaponType::AR,
+            skin_id: "default".into(),
+            grenades: GRENADE_START,
+            grenade_cooldown: 0.0,
+        };
+        p.apply_loadout();
+        p
+    }
+
+    pub fn apply_loadout(&mut self) {
+        self.weapons = vec![
+            Weapon::new(WeaponType::Pistol),
+            Weapon::new(self.primary_loadout),
+        ];
+        self.current_weapon_index = 1;
+    }
+
+    pub fn set_loadout(&mut self, primary: WeaponType, skin: &str) {
+        self.primary_loadout = primary;
+        if !skin.is_empty() {
+            self.skin_id = skin.to_string();
         }
+        self.apply_loadout();
     }
 
     pub fn move_player(&mut self, dx: f64, dy: f64, delta: f64) {
@@ -131,6 +158,18 @@ impl Player {
         if self.invuln > 0.0 {
             self.invuln = (self.invuln - delta).max(0.0);
         }
+        if self.grenade_cooldown > 0.0 {
+            self.grenade_cooldown = (self.grenade_cooldown - delta).max(0.0);
+        }
+    }
+
+    pub fn try_throw_grenade(&mut self) -> bool {
+        if !self.is_alive || self.grenades == 0 || self.grenade_cooldown > 0.0 {
+            return false;
+        }
+        self.grenades -= 1;
+        self.grenade_cooldown = GRENADE_COOLDOWN;
+        true
     }
 
     pub fn current_weapon(&self) -> &Weapon {
@@ -194,8 +233,9 @@ impl Player {
             std::f64::consts::PI
         };
         self.direction = Direction::from_angle(self.aim_angle);
-        self.weapons = vec![Weapon::new(WeaponType::Pistol)];
-        self.current_weapon_index = 0;
+        self.apply_loadout();
+        self.grenades = GRENADE_START;
+        self.grenade_cooldown = 0.0;
         self.dash_cooldown = 0.0;
         self.dash_timer = 0.0;
         self.invuln = 0.6;

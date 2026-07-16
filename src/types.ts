@@ -96,6 +96,7 @@ export interface SoundEvent {
     target_id?: number;
     source_id?: number;
     crit?: boolean;
+    Crit?: boolean;
   };
   PlayerDied?: { x: number; y: number; target_id?: number };
   RoundEnd?: object;

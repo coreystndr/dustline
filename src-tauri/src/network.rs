@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
-use crate::game::state::GameState;
+use crate::game::state::{GameState, SoundEvent};
 
 pub const CHANNEL_INPUT: i32 = 0;
 pub const CHANNEL_STATE: i32 = 1;
@@ -24,16 +24,34 @@ pub struct ClientInput {
     pub weapon_switch: bool,
     pub reload: bool,
     pub dash: bool,
+    #[serde(default)]
+    pub grenade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum NetworkEvent {
     GameStart,
     RoundStart { round: u32 },
     RoundEnd { winner_id: u8, score: [u32; 2] },
     MatchEnd { winner_id: u8, final_score: [u32; 2] },
     PlayerDisconnected { player_id: u8 },
-    Hello { player_id: u8 },
+    Hello {
+        player_id: u8,
+        #[serde(default)]
+        primary: String,
+        #[serde(default)]
+        skin: String,
+    },
+    /// Host → client combat / SFX events (same shape as SoundEvent)
+    Combat {
+        event: SoundEvent,
+    },
+    Loadout {
+        player_id: u8,
+        primary: String,
+        skin: String,
+    },
 }
 
 pub struct NetworkManager {
@@ -48,6 +66,13 @@ pub struct NetworkManager {
     /// Match already auto-started for this lobby
     pub match_started: bool,
     pub status: String,
+    /// Last accepted input tick per player (drop stale)
+    pub last_input_tick: [u64; 2],
+    /// Pending loadout from peer before spawn
+    pub peer_primary: String,
+    pub peer_skin: String,
+    pub local_primary: String,
+    pub local_skin: String,
 }
 
 impl NetworkManager {
@@ -62,6 +87,11 @@ impl NetworkManager {
             searching: false,
             match_started: false,
             status: "Steam not initialized".into(),
+            last_input_tick: [0, 0],
+            peer_primary: "AR".into(),
+            peer_skin: "default".into(),
+            local_primary: "AR".into(),
+            local_skin: "default".into(),
         }
     }
 }
@@ -70,7 +100,7 @@ pub struct SharedGameState {
     pub game_state: Mutex<GameState>,
     pub pending_inputs: Mutex<Vec<(u8, ClientInput)>>,
     pub network_manager: Mutex<NetworkManager>,
-    pub outbound: Mutex<Vec<(i32, Vec<u8>)>>,
+    pub outbound: Mutex<Vec<(i32, Vec<u8>, bool)>>, // channel, bytes, reliable
     pub inbound: Mutex<Vec<(u64, i32, Vec<u8>)>>,
 }
 

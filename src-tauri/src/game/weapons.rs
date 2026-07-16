@@ -9,6 +9,29 @@ pub enum WeaponType {
     Sniper,
 }
 
+impl WeaponType {
+    pub fn from_str_loose(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "smg" => WeaponType::SMG,
+            "ar" | "rifle" => WeaponType::AR,
+            "shotgun" => WeaponType::Shotgun,
+            "sniper" => WeaponType::Sniper,
+            "pistol" => WeaponType::Pistol,
+            _ => WeaponType::AR,
+        }
+    }
+
+    pub fn as_key(self) -> &'static str {
+        match self {
+            WeaponType::Pistol => "Pistol",
+            WeaponType::Shotgun => "Shotgun",
+            WeaponType::SMG => "SMG",
+            WeaponType::AR => "AR",
+            WeaponType::Sniper => "Sniper",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Weapon {
     pub weapon_type: WeaponType,

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::arena::Arena;
+use super::grenade::Grenade;
 use super::pickup::{create_default_pickups, WeaponPickup};
 use super::player::Player;
 use super::projectile::Projectile;
@@ -28,6 +29,8 @@ pub enum SoundEvent {
         damage: i32,
         target_id: u8,
         source_id: u8,
+        #[serde(default)]
+        crit: bool,
     },
     PlayerDied {
         x: f64,
@@ -56,6 +59,7 @@ pub struct GameState {
     pub score: [u32; 2],
     pub players: Vec<Player>,
     pub projectiles: Vec<Projectile>,
+    pub grenades: Vec<Grenade>,
     pub pickups: Vec<WeaponPickup>,
     pub arena: Arena,
     pub countdown_timer: f64,
@@ -68,10 +72,12 @@ pub struct GameState {
     pub match_time: f64,
     pub zone_phase: u8,
     pub zone_damage_tick: f64,
-    /// Edge detection: previous frame switch/reload/dash per player id
+    grenade_id: u64,
+    /// Edge detection: previous frame switch/reload/dash/grenade per player id
     prev_switch: [bool; 2],
     prev_reload: [bool; 2],
     prev_dash: [bool; 2],
+    prev_grenade: [bool; 2],
 }
 
 impl GameState {
@@ -88,6 +94,7 @@ impl GameState {
             score: [0, 0],
             players: Vec::new(),
             projectiles: Vec::new(),
+            grenades: Vec::new(),
             pickups,
             arena,
             countdown_timer: 0.0,
@@ -100,9 +107,11 @@ impl GameState {
             match_time: 0.0,
             zone_phase: 0,
             zone_damage_tick: 0.0,
+            grenade_id: 1,
             prev_switch: [false; 2],
             prev_reload: [false; 2],
             prev_dash: [false; 2],
+            prev_grenade: [false; 2],
         }
     }
 
@@ -132,6 +141,7 @@ impl GameState {
     pub fn start_round(&mut self) {
         self.round_state = RoundState::Playing;
         self.projectiles.clear();
+        self.grenades.clear();
         self.match_time = 0.0;
         self.zone_phase = 0;
         self.zone_radius = 380.0;
@@ -139,6 +149,10 @@ impl GameState {
         self.zone_x = self.arena.island_cx;
         self.zone_y = self.arena.island_cy;
         self.zone_damage_tick = 0.0;
+        self.prev_switch = [false; 2];
+        self.prev_reload = [false; 2];
+        self.prev_dash = [false; 2];
+        self.prev_grenade = [false; 2];
 
         for player in &mut self.players {
             let (sx, sy) = self.arena.spawn_position(player.id);
@@ -150,6 +164,9 @@ impl GameState {
     }
 
     pub fn end_round(&mut self, winner_id: u8) {
+        if self.round_state != RoundState::Playing {
+            return;
+        }
         self.round_state = RoundState::RoundEnd;
         self.round_end_timer = 2.8;
         self.winner_id = Some(winner_id);
@@ -157,6 +174,12 @@ impl GameState {
         self.score[idx] += 1;
         if self.score[idx] >= (self.max_rounds + 1) / 2 {
             self.round_state = RoundState::MatchEnd;
+        }
+    }
+
+    pub fn set_player_loadout(&mut self, player_id: u8, primary: WeaponType, skin: &str) {
+        if let Some(p) = self.players.iter_mut().find(|p| p.id == player_id) {
+            p.set_loadout(primary, skin);
         }
     }
 
@@ -235,6 +258,7 @@ impl GameState {
         weapon_switch: bool,
         reload: bool,
         dash: bool,
+        grenade: bool,
         delta: f64,
     ) -> Vec<SoundEvent> {
         let mut events = Vec::new();
@@ -246,9 +270,11 @@ impl GameState {
         let switch_edge = weapon_switch && !self.prev_switch[idx];
         let reload_edge = reload && !self.prev_reload[idx];
         let dash_edge = dash && !self.prev_dash[idx];
+        let grenade_edge = grenade && !self.prev_grenade[idx];
         self.prev_switch[idx] = weapon_switch;
         self.prev_reload[idx] = reload;
         self.prev_dash[idx] = dash;
+        self.prev_grenade[idx] = grenade;
 
         if let Some(player) = self.players.iter_mut().find(|p| p.id == player_id) {
             player.set_aim(aim_angle);
@@ -276,6 +302,18 @@ impl GameState {
                     events.push(SoundEvent::Reload {
                         weapon_type: player.current_weapon().weapon_type,
                     });
+                }
+            }
+        }
+
+        if grenade_edge {
+            if let Some(player) = self.players.iter_mut().find(|p| p.id == player_id) {
+                let aim = player.aim_angle;
+                let c = player.center();
+                if player.try_throw_grenade() {
+                    self.grenade_id += 1;
+                    self.grenades
+                        .push(Grenade::new(self.grenade_id, c.0, c.1, aim, player_id));
                 }
             }
         }
@@ -326,7 +364,10 @@ impl GameState {
                     &self.arena,
                 );
 
-                for (source_id, target_id, damage) in hits {
+                for (source_id, target_id, damage, crit) in hits {
+                    if self.round_state != RoundState::Playing {
+                        break;
+                    }
                     if let Some(player) = self.players.iter_mut().find(|p| p.id == target_id) {
                         let center = player.center();
                         if player.take_damage(damage) {
@@ -336,6 +377,7 @@ impl GameState {
                                 damage,
                                 target_id,
                                 source_id,
+                                crit,
                             });
                             events.push(SoundEvent::PlayerDied {
                                 x: center.0,
@@ -352,10 +394,13 @@ impl GameState {
                                 damage,
                                 target_id,
                                 source_id,
+                                crit,
                             });
                         }
                     }
                 }
+
+                self.update_grenades(delta_time, &mut events);
 
                 for pickup in &mut self.pickups {
                     pickup.update(delta_time);
@@ -412,7 +457,84 @@ impl GameState {
         events
     }
 
-    fn update_zone(&mut self, dt: f64, _events: &mut Vec<SoundEvent>) {
+    fn update_grenades(&mut self, dt: f64, events: &mut Vec<SoundEvent>) {
+        let icx = self.arena.island_cx;
+        let icy = self.arena.island_cy;
+        let ir = self.arena.island_r;
+        for g in &mut self.grenades {
+            g.update(dt, icx, icy, ir);
+        }
+
+        let mut exploded: Vec<(f64, f64, u8)> = Vec::new();
+        for g in &self.grenades {
+            if g.active && g.fuse <= 0.0 {
+                exploded.push((g.x, g.y, g.owner_id));
+            }
+        }
+        for g in &mut self.grenades {
+            if g.fuse <= 0.0 {
+                g.active = false;
+            }
+        }
+        self.grenades.retain(|g| g.active);
+
+        for (gx, gy, _owner) in exploded {
+            if self.round_state != RoundState::Playing {
+                break;
+            }
+            // Apply splash
+            let mut killed: Option<u8> = None;
+            for player in &mut self.players {
+                if !player.is_alive {
+                    continue;
+                }
+                let (cx, cy) = player.center();
+                let dist = ((cx - gx).powi(2) + (cy - gy).powi(2)).sqrt();
+                if dist > super::grenade::GRENADE_RADIUS {
+                    continue;
+                }
+                let t = dist / super::grenade::GRENADE_RADIUS;
+                let falloff = 1.0 - t * 0.65;
+                let dmg = ((super::grenade::GRENADE_DAMAGE as f64) * falloff)
+                    .round()
+                    .max(8.0) as i32;
+                let crit = t < 0.35;
+                let center = player.center();
+                let tid = player.id;
+                if player.take_damage(dmg) {
+                    events.push(SoundEvent::PlayerHit {
+                        x: center.0,
+                        y: center.1,
+                        damage: dmg,
+                        target_id: tid,
+                        source_id: _owner,
+                        crit,
+                    });
+                    events.push(SoundEvent::PlayerDied {
+                        x: center.0,
+                        y: center.1,
+                        target_id: tid,
+                    });
+                    killed = Some(if tid == 0 { 1 } else { 0 });
+                } else {
+                    events.push(SoundEvent::PlayerHit {
+                        x: center.0,
+                        y: center.1,
+                        damage: dmg,
+                        target_id: tid,
+                        source_id: _owner,
+                        crit,
+                    });
+                }
+            }
+            if let Some(w) = killed {
+                self.end_round(w);
+                events.push(SoundEvent::RoundEnd);
+            }
+        }
+    }
+
+    fn update_zone(&mut self, dt: f64, events: &mut Vec<SoundEvent>) {
         let t = self.match_time;
         if t > 20.0 && self.zone_phase == 0 {
             self.zone_phase = 1;
@@ -436,6 +558,7 @@ impl GameState {
             let zy = self.zone_y;
             let zr = self.zone_radius;
             let mut deaths = Vec::new();
+            let mut hits = Vec::new();
             for player in &mut self.players {
                 if !player.is_alive {
                     continue;
@@ -444,15 +567,40 @@ impl GameState {
                 let dx = cx - zx;
                 let dy = cy - zy;
                 if dx * dx + dy * dy > zr * zr {
+                    let center = (cx, cy);
+                    let id = player.id;
                     if player.take_damage(4) {
-                        deaths.push(player.id);
+                        hits.push((center, id, 4, true));
+                        deaths.push(id);
+                    } else {
+                        hits.push((center, id, 4, false));
                     }
                 }
             }
+            for (center, tid, dmg, died) in hits {
+                events.push(SoundEvent::PlayerHit {
+                    x: center.0,
+                    y: center.1,
+                    damage: dmg,
+                    target_id: tid,
+                    source_id: 255, // zone
+                    crit: false,
+                });
+                if died {
+                    events.push(SoundEvent::PlayerDied {
+                        x: center.0,
+                        y: center.1,
+                        target_id: tid,
+                    });
+                }
+            }
             for id in deaths {
+                if self.round_state != RoundState::Playing {
+                    break;
+                }
                 let other = if id == 0 { 1 } else { 0 };
                 self.end_round(other);
-                _events.push(SoundEvent::RoundEnd);
+                events.push(SoundEvent::RoundEnd);
             }
         }
     }
