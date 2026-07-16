@@ -161,13 +161,14 @@ pub fn steam_status(state: State<'_, Arc<SharedGameState>>) -> Result<String, St
 }
 
 /// Quick matchmaking: search for a waiting player, or open a public lobby.
+/// Returns immediately; status updates stream via `steam_status` / `match_found`.
 #[tauri::command]
 pub fn steam_find_match(
     state: State<'_, Arc<SharedGameState>>,
     steam: State<'_, Option<Arc<SteamRuntime>>>,
 ) -> Result<String, String> {
     let steam = steam.inner().clone().ok_or_else(|| {
-        "Steam not available. Start the Steam client and relaunch.".to_string()
+        "Steam not available. Start the Steam client (logged in), keep steam_api64.dll + steam_appid.txt next to the game, then relaunch.".to_string()
     })?;
     let shared = state.inner().clone();
     steam.find_match(shared)

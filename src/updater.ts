@@ -217,10 +217,5 @@ export function dismissUpdateUi(): void {
 /** Open the public download / changelog site. */
 export async function openDownloadSite(): Promise<void> {
   const url = 'https://website-red-six-83.vercel.app/#download';
-  try {
-    const { open } = await import('@tauri-apps/plugin-shell');
-    await open(url);
-  } catch {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
+  window.open(url, '_blank', 'noopener,noreferrer');
 }

@@ -288,7 +288,8 @@ function updatePlayerHud(
     is_alive?: boolean;
   }
 ): void {
-  const panel = document.getElementById(prefix === 'p1' ? 'player1Hud' : 'player2Hud');
+  const healthPanel = document.getElementById(prefix === 'p1' ? 'player1Hud' : 'player2Hud');
+  const ammoPanel = document.getElementById(prefix === 'p1' ? 'p1AmmoPanel' : 'p2AmmoPanel');
   const bar = document.getElementById(`${prefix}HealthBar`);
   const text = document.getElementById(`${prefix}HealthText`);
   const wName = document.getElementById(`${prefix}WeaponName`);
@@ -309,7 +310,8 @@ function updatePlayerHud(
   (bar as HTMLElement).style.width = `${pct}%`;
   text.textContent = alive ? `${Math.ceil(hp)}` : '—';
 
-  if (panel) {
+  for (const panel of [healthPanel, ammoPanel]) {
+    if (!panel) continue;
     panel.classList.toggle('low-hp', low);
     panel.classList.toggle('dead', !alive);
   }

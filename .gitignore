@@ -1,4 +1,4 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 .npm/
 
@@ -16,12 +16,13 @@ keys/*.key
 keys/*.key.pub.bak
 *.pem
 
-# Local release binaries (download from site / CI artifacts)
+# Local release binaries — allow shipping installers via Vercel CLI
+# ALLOW website installers
 website/public/downloads/*
 !website/public/downloads/.gitkeep
-website/public/downloads/**/*.exe
-website/public/downloads/**/*.zip
-website/public/downloads/**/*.sig
+!website/public/downloads/*.exe
+!website/public/downloads/*.sig
+!website/public/downloads/*.zip
 
 # OS / IDE
 .DS_Store

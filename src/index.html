@@ -619,10 +619,33 @@
     }
     #hud.active { display: block; }
 
-    .player-hud {
+    /* Bottom-left: health stack */
+    #hudHealth {
       position: absolute;
-      top: 14px;
-      width: 252px;
+      left: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 260px;
+      z-index: 2;
+    }
+
+    /* Bottom-right: ammo / weapon stack */
+    #hudAmmo {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 240px;
+      align-items: stretch;
+      z-index: 2;
+    }
+
+    .player-hud {
+      width: 100%;
       padding: 0;
       background: var(--glass);
       border: 1px solid var(--line);
@@ -634,17 +657,10 @@
       transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s;
     }
 
-    #player1Hud {
-      left: 14px;
-      border-top: 2px solid var(--clay);
-      border-left: 1px solid var(--line);
-    }
-    #player2Hud {
-      right: 14px;
-      border-top: 2px solid var(--blue);
-      border-right: 1px solid var(--line);
-      border-left: 1px solid var(--line);
-    }
+    #player1Hud { border-top: 2px solid var(--clay); }
+    #player2Hud { border-top: 2px solid var(--blue); }
+    #p1AmmoPanel { border-top: 2px solid var(--clay); }
+    #p2AmmoPanel { border-top: 2px solid var(--blue); }
 
     .player-hud.low-hp {
       box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(192, 57, 43, 0.35);
@@ -655,17 +671,16 @@
     }
 
     .player-hud-inner {
-      padding: 11px 13px 12px;
+      padding: 10px 12px 11px;
     }
 
     .player-hud-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
       gap: 8px;
     }
-    #player2Hud .player-hud-top { flex-direction: row-reverse; }
 
     .player-name {
       font-size: 10px;
@@ -675,11 +690,11 @@
       align-items: center;
       gap: 7px;
     }
-    #player1Hud .player-name { color: #f08a52; }
-    #player2Hud .player-name {
-      color: #6aa8ef;
-      flex-direction: row-reverse;
-    }
+    #player1Hud .player-name,
+    #p1AmmoPanel .player-name { color: #f08a52; }
+    #player2Hud .player-name,
+    #p2AmmoPanel .player-name { color: #6aa8ef; }
+
     .player-name .status-dot {
       width: 7px;
       height: 7px;
@@ -704,7 +719,7 @@
     }
 
     .health-text {
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 800;
       font-variant-numeric: tabular-nums;
       font-family: var(--mono);
@@ -716,11 +731,11 @@
 
     .health-bar-container {
       width: 100%;
-      height: 9px;
+      height: 11px;
       background: rgba(0, 0, 0, 0.5);
       border-radius: 99px;
       overflow: hidden;
-      margin-bottom: 10px;
+      margin-bottom: 0;
       box-shadow: inset 0 1px 2px rgba(0,0,0,0.45);
       position: relative;
     }
@@ -746,35 +761,33 @@
     #player2Hud .health-bar {
       background: linear-gradient(90deg, var(--blue-deep), var(--blue), #6aa8ef);
       box-shadow: 0 0 10px rgba(47, 127, 212, 0.35);
-      margin-left: auto;
     }
     .player-hud.low-hp .health-bar {
       background: linear-gradient(90deg, #7a1a12, #c0392b, #e74c3c) !important;
       box-shadow: 0 0 12px rgba(231, 76, 60, 0.45) !important;
     }
 
-    .hud-weapon-row {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    #player2Hud .hud-weapon-row { flex-direction: row-reverse; }
+    /* Ammo panel (bottom right) */
+    .ammo-panel .player-hud-inner { padding: 10px 14px 12px; }
+    .ammo-panel .player-hud-top { margin-bottom: 4px; }
 
     .weapon-name {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 800;
-      letter-spacing: 0.08em;
-      color: var(--paper);
+      letter-spacing: 0.1em;
+      color: var(--muted);
       text-transform: uppercase;
     }
     .weapon-ammo {
-      font-size: 13px;
-      font-weight: 700;
+      display: block;
+      font-size: 28px;
+      font-weight: 800;
       font-family: var(--mono);
       font-variant-numeric: tabular-nums;
-      color: var(--sand);
+      color: var(--paper);
+      line-height: 1.05;
+      letter-spacing: 0.02em;
+      text-align: right;
     }
     .weapon-ammo.reloading {
       color: #e0b060;
@@ -789,11 +802,12 @@
     .hud-meta-row {
       display: flex;
       align-items: center;
+      justify-content: flex-end;
       gap: 8px;
       padding-top: 8px;
+      margin-top: 8px;
       border-top: 1px solid var(--line);
     }
-    #player2Hud .hud-meta-row { flex-direction: row-reverse; }
 
     .hud-chip {
       display: inline-flex;
@@ -838,7 +852,8 @@
       background: rgba(0,0,0,0.4);
       border-radius: 99px;
       overflow: hidden;
-      min-width: 36px;
+      min-width: 28px;
+      max-width: 56px;
     }
     .dash-meter > span {
       display: block;
@@ -851,9 +866,8 @@
     .dash-meter.cooling > span {
       background: linear-gradient(90deg, #8a6a20, #e0b060);
     }
-    #player2Hud .dash-meter > span { margin-left: auto; }
 
-    /* Scoreboard */
+    /* Scoreboard — top center */
     #scoreDisplay {
       position: absolute;
       top: 12px;
@@ -918,12 +932,12 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* Zone + bottom strip */
+    /* Zone — top left */
     #zoneInfo {
       position: absolute;
-      bottom: 14px;
+      top: 14px;
       left: 14px;
-      min-width: 168px;
+      min-width: 150px;
       font-size: 10px;
       letter-spacing: 0.1em;
       font-weight: 800;
@@ -990,7 +1004,7 @@
 
     .hud-hint {
       position: absolute;
-      bottom: 14px;
+      top: 14px;
       right: 58px;
       font-size: 9px;
       letter-spacing: 0.1em;
@@ -1008,7 +1022,7 @@
 
     .hud-fs-btn {
       position: absolute;
-      bottom: 14px;
+      top: 14px;
       right: 14px;
       width: 36px;
       height: 36px;
@@ -1367,31 +1381,6 @@
 
     <!-- HUD -->
     <div id="hud">
-      <div id="player1Hud" class="player-hud">
-        <div class="player-hud-inner">
-          <div class="player-hud-top">
-            <div class="player-name"><span class="status-dot" aria-hidden="true"></span>PLAYER 1</div>
-            <div class="health-text" id="p1HealthText">100</div>
-          </div>
-          <div class="health-bar-container"><div class="health-bar" id="p1HealthBar"></div></div>
-          <div class="hud-weapon-row">
-            <span class="weapon-name" id="p1WeaponName">AR</span>
-            <span class="weapon-ammo" id="p1Ammo">25/90</span>
-          </div>
-          <div class="hud-meta-row">
-            <div class="hud-chip ready" id="p1DashChip">
-              <span class="chip-label">Dash</span>
-              <span id="p1DashText">Ready</span>
-            </div>
-            <div class="dash-meter ready" id="p1DashMeter" aria-hidden="true"><span id="p1DashFill"></span></div>
-            <div class="hud-chip" id="p1NadeChip">
-              <span class="chip-label">Nade</span>
-              <span id="p1Nades">0</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div id="scoreDisplay">
         <div class="score-row">
           <span class="score-side p1">P1</span>
@@ -1400,31 +1389,6 @@
         </div>
         <div id="roundInfo">Best of 5 · First to 3</div>
         <div id="matchTimer">0:00</div>
-      </div>
-
-      <div id="player2Hud" class="player-hud">
-        <div class="player-hud-inner">
-          <div class="player-hud-top">
-            <div class="player-name"><span class="status-dot" aria-hidden="true"></span>PLAYER 2</div>
-            <div class="health-text" id="p2HealthText">100</div>
-          </div>
-          <div class="health-bar-container"><div class="health-bar" id="p2HealthBar"></div></div>
-          <div class="hud-weapon-row">
-            <span class="weapon-name" id="p2WeaponName">SMG</span>
-            <span class="weapon-ammo" id="p2Ammo">30/120</span>
-          </div>
-          <div class="hud-meta-row">
-            <div class="hud-chip ready" id="p2DashChip">
-              <span class="chip-label">Dash</span>
-              <span id="p2DashText">Ready</span>
-            </div>
-            <div class="dash-meter ready" id="p2DashMeter" aria-hidden="true"><span id="p2DashFill"></span></div>
-            <div class="hud-chip" id="p2NadeChip">
-              <span class="chip-label">Nade</span>
-              <span id="p2Nades">0</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div id="zoneInfo">
@@ -1436,6 +1400,72 @@
       </div>
       <div class="hud-hint">Esc pause · F11 fullscreen</div>
       <button type="button" class="hud-fs-btn" id="btnFullscreenHud" title="Fullscreen (F11)">⛶</button>
+
+      <!-- Health: bottom left -->
+      <div id="hudHealth">
+        <div id="player1Hud" class="player-hud">
+          <div class="player-hud-inner">
+            <div class="player-hud-top">
+              <div class="player-name"><span class="status-dot" aria-hidden="true"></span>P1</div>
+              <div class="health-text" id="p1HealthText">100</div>
+            </div>
+            <div class="health-bar-container"><div class="health-bar" id="p1HealthBar"></div></div>
+          </div>
+        </div>
+        <div id="player2Hud" class="player-hud">
+          <div class="player-hud-inner">
+            <div class="player-hud-top">
+              <div class="player-name"><span class="status-dot" aria-hidden="true"></span>P2</div>
+              <div class="health-text" id="p2HealthText">100</div>
+            </div>
+            <div class="health-bar-container"><div class="health-bar" id="p2HealthBar"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ammo: bottom right -->
+      <div id="hudAmmo">
+        <div id="p1AmmoPanel" class="player-hud ammo-panel">
+          <div class="player-hud-inner">
+            <div class="player-hud-top">
+              <div class="player-name">P1</div>
+              <span class="weapon-name" id="p1WeaponName">AR</span>
+            </div>
+            <span class="weapon-ammo" id="p1Ammo">25/90</span>
+            <div class="hud-meta-row">
+              <div class="hud-chip ready" id="p1DashChip">
+                <span class="chip-label">Dash</span>
+                <span id="p1DashText">Ready</span>
+              </div>
+              <div class="dash-meter ready" id="p1DashMeter" aria-hidden="true"><span id="p1DashFill"></span></div>
+              <div class="hud-chip" id="p1NadeChip">
+                <span class="chip-label">Nade</span>
+                <span id="p1Nades">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="p2AmmoPanel" class="player-hud ammo-panel">
+          <div class="player-hud-inner">
+            <div class="player-hud-top">
+              <div class="player-name">P2</div>
+              <span class="weapon-name" id="p2WeaponName">SMG</span>
+            </div>
+            <span class="weapon-ammo" id="p2Ammo">30/120</span>
+            <div class="hud-meta-row">
+              <div class="hud-chip ready" id="p2DashChip">
+                <span class="chip-label">Dash</span>
+                <span id="p2DashText">Ready</span>
+              </div>
+              <div class="dash-meter ready" id="p2DashMeter" aria-hidden="true"><span id="p2DashFill"></span></div>
+              <div class="hud-chip" id="p2NadeChip">
+                <span class="chip-label">Nade</span>
+                <span id="p2Nades">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- COUNTDOWN -->

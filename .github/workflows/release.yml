@@ -1,11 +1,13 @@
 # Build signed Windows installer + updater artifacts and publish a GitHub Release.
-# The auto-updater downloads latest.json + .nsis.zip from this release.
+# In-game auto-updater reads latest.json from GitHub Releases + Vercel mirror.
 #
-# Trigger: git tag v1.0.1 && git push origin v1.0.1
-# Or: Actions → Release → Run workflow
+# Trigger:
+#   git tag v1.0.1 && git push origin v1.0.1
+#   or Actions → Release → Run workflow
 #
-# Required repo secret:
-#   TAURI_SIGNING_PRIVATE_KEY  = contents of keys/dustline.key
+# Required secrets:
+#   TAURI_SIGNING_PRIVATE_KEY           = full contents of keys/dustline-plain.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  = key password (if encrypted)
 
 name: Release
 
@@ -67,15 +69,14 @@ jobs:
 
       - name: Sync version into manifests
         shell: bash
+        env:
+          V: ${{ steps.ver.outputs.version }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
           node -e "
             const fs=require('fs');
             const v=process.env.V;
-            for (const f of ['package.json']) {
-              const j=JSON.parse(fs.readFileSync(f,'utf8')); j.version=v;
-              fs.writeFileSync(f, JSON.stringify(j,null,2)+'\n');
-            }
+            const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.version=v;
+            fs.writeFileSync('package.json', JSON.stringify(pkg,null,2)+'\n');
             const conf=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));
             conf.version=v;
             fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf,null,2)+'\n');
@@ -83,67 +84,60 @@ jobs:
             cargo=cargo.replace(/^version\s*=\s*\"[^\"]+\"/m, 'version = \"'+v+'\"');
             fs.writeFileSync('src-tauri/Cargo.toml', cargo);
           "
-        env:
-          V: ${{ steps.ver.outputs.version }}
 
       - name: Ensure steam redistributables
         shell: bash
         run: |
-          if [ ! -f src-tauri/steam_api64.dll ]; then
-            echo "steam_api64.dll missing from repo — CI cannot ship Steam without it"
-            exit 1
-          fi
+          test -f src-tauri/steam_api64.dll || { echo "steam_api64.dll missing"; exit 1; }
           test -f src-tauri/steam_appid.txt
 
       - name: Build Tauri (signed updater artifacts)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # empty password if key has none
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build
 
       - name: Collect artifacts + write latest.json
         id: arts
         shell: bash
+        env:
+          NOTES: ${{ github.event.inputs.notes }}
+          V: ${{ steps.ver.outputs.version }}
+          REPO: ${{ github.repository }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
           NSIS="src-tauri/target/release/bundle/nsis"
           ls -la "$NSIS" || true
           SETUP=$(ls "$NSIS"/*-setup.exe 2>/dev/null | head -n1)
-          ZIP=$(ls "$NSIS"/*.nsis.zip 2>/dev/null | head -n1)
-          SIG=$(ls "$NSIS"/*.nsis.zip.sig 2>/dev/null | head -n1)
-          if [ -z "$SETUP" ] || [ -z "$ZIP" ]; then
-            echo "Missing NSIS artifacts"
+          ZIP=$(ls "$NSIS"/*.nsis.zip 2>/dev/null | head -n1 || true)
+          ZIP_SIG=$(ls "$NSIS"/*.nsis.zip.sig 2>/dev/null | head -n1 || true)
+          EXE_SIG=$(ls "$NSIS"/*-setup.exe.sig 2>/dev/null | head -n1 || true)
+
+          if [ -z "$SETUP" ]; then
+            echo "Missing NSIS setup.exe"
             ls -laR src-tauri/target/release/bundle || true
             exit 1
           fi
-          if [ -z "$SIG" ]; then
+
+          if [ -n "$ZIP" ] && [ -n "$ZIP_SIG" ]; then
+            PKG="$ZIP"
+            SIG="$ZIP_SIG"
+          elif [ -n "$EXE_SIG" ]; then
+            PKG="$SETUP"
+            SIG="$EXE_SIG"
+          else
             echo "Missing signature — set TAURI_SIGNING_PRIVATE_KEY secret"
             exit 1
           fi
-          SIG_CONTENT=$(tr -d '\r\n' < "$SIG")
-          NOTES="${{ github.event.inputs.notes }}"
-          if [ -z "$NOTES" ]; then NOTES="Release v$V"; fi
-          REPO="${{ github.repository }}"
-          SETUP_NAME=$(basename "$SETUP")
-          ZIP_NAME=$(basename "$ZIP")
-          cat > latest.json <<EOF
-          {
-            "version": "$V",
-            "notes": $(node -p "JSON.stringify(process.env.NOTES)"),
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "installer_url": "https://github.com/$REPO/releases/download/v$V/$SETUP_NAME",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": $(node -p "JSON.stringify(require('fs').readFileSync(process.env.SIG,'utf8').trim())"),
-                "url": "https://github.com/$REPO/releases/download/v$V/$ZIP_NAME"
-              }
-            }
-          }
-          EOF
-          # prettier write without broken heredoc — rewrite via node
-          NOTES="$NOTES" SIG="$SIG" V="$V" REPO="$REPO" SETUP_NAME="$SETUP_NAME" ZIP_NAME="$ZIP_NAME" node <<'NODE'
+
+          export SETUP SIG PKG
+          export SETUP_NAME=$(basename "$SETUP")
+          export PKG_NAME=$(basename "$PKG")
+          export SITE="https://website-red-six-83.vercel.app"
+          export NOTES="${NOTES:-Release v$V}"
+
+          node <<'NODE'
           const fs = require('fs');
+          const path = require('path');
           const latest = {
             version: process.env.V,
             notes: process.env.NOTES || `Release v${process.env.V}`,
@@ -152,21 +146,39 @@ jobs:
             platforms: {
               'windows-x86_64': {
                 signature: fs.readFileSync(process.env.SIG, 'utf8').trim(),
-                url: `https://github.com/${process.env.REPO}/releases/download/v${process.env.V}/${process.env.ZIP_NAME}`,
+                url: `https://github.com/${process.env.REPO}/releases/download/v${process.env.V}/${process.env.PKG_NAME}`,
+              },
+            },
+            mirrors: {
+              github: `https://github.com/${process.env.REPO}/releases/download/v${process.env.V}/${process.env.PKG_NAME}`,
+              vercel: `${process.env.SITE}/downloads/${process.env.PKG_NAME}`,
+            },
+          };
+          const webLatest = {
+            ...latest,
+            installer_url: `${process.env.SITE}/downloads/${process.env.SETUP_NAME}`,
+            platforms: {
+              'windows-x86_64': {
+                signature: latest.platforms['windows-x86_64'].signature,
+                url: `${process.env.SITE}/downloads/${process.env.PKG_NAME}`,
               },
             },
           };
           fs.writeFileSync('latest.json', JSON.stringify(latest, null, 2) + '\n');
-          // Mirror onto website for Vercel (optional dual host)
           fs.mkdirSync('website/public/updates', { recursive: true });
-          fs.writeFileSync('website/public/updates/latest.json', JSON.stringify(latest, null, 2) + '\n');
+          fs.mkdirSync('website/public/downloads', { recursive: true });
+          fs.writeFileSync('website/public/updates/latest.json', JSON.stringify(webLatest, null, 2) + '\n');
+          fs.copyFileSync(process.env.SETUP, path.join('website/public/downloads', process.env.SETUP_NAME));
+          if (process.env.PKG !== process.env.SETUP) {
+            fs.copyFileSync(process.env.PKG, path.join('website/public/downloads', process.env.PKG_NAME));
+          }
+          fs.copyFileSync(process.env.SIG, path.join('website/public/downloads', path.basename(process.env.SIG)));
           console.log(JSON.stringify(latest, null, 2));
           NODE
+
           echo "setup=$SETUP" >> "$GITHUB_OUTPUT"
-          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
           echo "sig=$SIG" >> "$GITHUB_OUTPUT"
-          echo "setup_name=$SETUP_NAME" >> "$GITHUB_OUTPUT"
-          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -176,15 +188,15 @@ jobs:
           body: ${{ github.event.inputs.notes || format('Release v{0}', steps.ver.outputs.version) }}
           files: |
             ${{ steps.arts.outputs.setup }}
-            ${{ steps.arts.outputs.zip }}
+            ${{ steps.arts.outputs.pkg }}
             ${{ steps.arts.outputs.sig }}
             latest.json
           fail_on_unmatched_files: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit website latest.json (for Vercel mirror)
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+      - name: Commit website latest.json (Vercel Git mirror)
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -194,6 +206,5 @@ jobs:
             echo "No website manifest changes"
           else
             git commit -m "chore: update latest.json for v${{ steps.ver.outputs.version }}"
-            # Push to master so Vercel redeploys
-            git push origin HEAD:master || git push origin "HEAD:refs/heads/master" || true
+            git push origin HEAD:master || true
           fi

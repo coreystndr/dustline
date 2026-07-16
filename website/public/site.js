@@ -1,17 +1,15 @@
-// Download always comes from this site (absolute URL for reliability).
+// Download always from this site. Version comes from /updates/latest.json.
 
 const SITE = 'https://website-red-six-83.vercel.app';
-const LOCAL_INSTALLER = `${SITE}/downloads/DUSTLINE_1.0.0_x64-setup.exe`;
 const LOCAL_MANIFEST = '/updates/latest.json';
 
 function installerPathFor(version) {
-  const v = (version || '1.0.0').replace(/^v/, '');
+  const v = (version || '1.0.1').replace(/^v/, '');
   return `${SITE}/downloads/DUSTLINE_${v}_x64-setup.exe`;
 }
 
 function normalizeInstallerUrl(url, version) {
   if (!url) return installerPathFor(version);
-  // Relative path → absolute on this site
   if (url.startsWith('/')) return `${SITE}${url}`;
   // Never send users to empty GitHub Releases pages
   if (/github\.com\/.*\/releases(\/|$)/i.test(url) && !/\.exe(\?|$)/i.test(url)) {
@@ -33,10 +31,7 @@ function setDownloadHref(version, directUrl) {
     a2.href = url;
     a2.setAttribute('download', '');
   }
-  if (ver) {
-    const v = (version || '1.0.0').replace(/^v/, '');
-    ver.textContent = `Installer · v${v}`;
-  }
+  if (ver) ver.textContent = `v${(version || '1.0.1').replace(/^v/, '')}`;
 }
 
 async function fetchJson(url) {
@@ -48,17 +43,17 @@ async function fetchJson(url) {
 async function boot() {
   const meta = document.getElementById('releaseMeta');
   const log = document.getElementById('changelog');
-
-  setDownloadHref('1.0.0', LOCAL_INSTALLER);
+  const fallback = installerPathFor('1.0.1');
+  setDownloadHref('1.0.1', fallback);
 
   try {
     const data = await fetchJson(LOCAL_MANIFEST);
-    const version = (data.version || '1.0.0').replace(/^v/, '');
+    const version = (data.version || '1.0.1').replace(/^v/, '');
     const installer = data.installer_url || installerPathFor(version);
     setDownloadHref(version, installer);
 
     if (meta) {
-      meta.innerHTML = `Latest: <strong>v${version}</strong> · direct download from this site`;
+      meta.innerHTML = `Latest: <strong>v${version}</strong> · auto-updates enabled`;
     }
 
     if (log) {
@@ -67,7 +62,7 @@ async function boot() {
       entry.className = 'entry';
       entry.innerHTML = `<div class="ver">v${version}</div><div class="notes"></div>`;
       entry.querySelector('.notes').textContent =
-        data.notes || 'Windows installer with Steam runtime (steam_api64.dll).';
+        data.notes || 'Windows installer with Steam runtime + auto-updater.';
       log.appendChild(entry);
       if (Array.isArray(data.history)) {
         for (const h of data.history) {
@@ -81,13 +76,12 @@ async function boot() {
     }
   } catch (e) {
     if (meta) {
-      meta.innerHTML = `Latest: <strong>v1.0.0</strong> · <a href="${LOCAL_INSTALLER}">download installer</a>`;
+      meta.innerHTML = `Latest: <strong>v1.0.1</strong> · <a href="${fallback}">download installer</a>`;
     }
     if (log) {
-      log.innerHTML =
-        '<p class="muted">v1.0.0 — Windows installer (includes steam_api64.dll).</p>';
+      log.innerHTML = '<p class="muted">v1.0.1 — Windows installer (auto-updates).</p>';
     }
-    setDownloadHref('1.0.0', LOCAL_INSTALLER);
+    setDownloadHref('1.0.1', fallback);
     console.warn('manifest', e);
   }
 }

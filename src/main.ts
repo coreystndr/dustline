@@ -418,17 +418,19 @@ async function handleFindMatch(_primary?: WeaponType): Promise<void> {
 
   try {
     appendQueueLog('Calling steam_find_match…', 'info');
+    appendQueueLog('Need: Steam running + logged in (AppID 480 Spacewar)', 'info');
     const result = await tauriInvoke('steam_find_match');
     const msg = String(result);
     updateLobbyStatus(msg);
-    updateLobbyInfo('In queue — match starts when 2 players are found.');
+    updateLobbyInfo('In queue — both players must click Find Match. Match starts at 2/2.');
     appendQueueLog(msg, 'ok');
-    appendQueueLog('Polling lobby members…', 'info');
+    appendQueueLog('Searching worldwide lobbies + waiting for opponent…', 'info');
+    appendQueueLog('Keep this screen open. Cancel aborts the queue.', 'warn');
   } catch (e) {
     updateLobbyStatus('Matchmaking failed');
     updateLobbyInfo(String(e));
     appendQueueLog(String(e), 'err');
-    appendQueueLog('Tip: Steam running? Or use Test vs Bot', 'warn');
+    appendQueueLog('Tip: Start Steam, stay online, relaunch DUSTLINE — or use Test vs Bot', 'warn');
   }
 }
 
