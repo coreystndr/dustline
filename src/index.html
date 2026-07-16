@@ -216,7 +216,9 @@
       transition: background 0.14s, border-color 0.14s, transform 0.08s, box-shadow 0.14s;
       text-align: left;
       border-radius: var(--radius);
-      box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.2);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .menu-btn .btn-hint {
@@ -337,6 +339,8 @@
       border-radius: 10px;
       padding: 16px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .loadout-col-head {
@@ -386,7 +390,7 @@
     .weapon-card {
       appearance: none;
       border: 1px solid var(--line);
-      background: rgba(8, 12, 14, 0.55);
+      background: rgba(8, 12, 14, 0.45);
       color: var(--sand);
       text-align: left;
       padding: 10px 11px 12px;
@@ -395,6 +399,8 @@
       font: 600 11px/1.35 var(--font);
       transition: border-color 0.12s, background 0.12s, transform 0.08s, box-shadow 0.12s;
       min-height: 92px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
     .weapon-card .w-preview {
       display: block;
@@ -618,10 +624,10 @@
       top: 14px;
       width: 252px;
       padding: 0;
-      background: rgba(10, 14, 16, 0.82);
+      background: var(--glass);
       border: 1px solid var(--line);
       border-radius: 12px;
-      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
       overflow: hidden;
@@ -630,11 +636,13 @@
 
     #player1Hud {
       left: 14px;
-      border-left: 3px solid var(--clay);
+      border-top: 2px solid var(--clay);
+      border-left: 1px solid var(--line);
     }
     #player2Hud {
       right: 14px;
-      border-right: 3px solid var(--blue);
+      border-top: 2px solid var(--blue);
+      border-right: 1px solid var(--line);
       border-left: 1px solid var(--line);
     }
 
@@ -796,11 +804,13 @@
       font-family: var(--mono);
       letter-spacing: 0.02em;
       color: var(--sand);
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0, 0, 0, 0.28);
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 4px 7px;
       min-height: 24px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
     }
     .hud-chip .chip-label {
       font-size: 8px;
@@ -851,11 +861,11 @@
       transform: translateX(-50%);
       text-align: center;
       padding: 10px 22px 11px;
-      background: rgba(10, 14, 16, 0.82);
+      background: var(--glass);
       border: 1px solid var(--line);
       border-radius: 12px;
       min-width: 200px;
-      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
@@ -918,11 +928,13 @@
       letter-spacing: 0.1em;
       font-weight: 800;
       color: #d2c0f5;
-      background: rgba(18, 12, 28, 0.88);
+      background: linear-gradient(145deg, rgba(32, 20, 48, 0.78), rgba(14, 12, 22, 0.72));
       border: 1px solid rgba(170, 110, 255, 0.28);
       padding: 9px 12px 10px;
       border-radius: 10px;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       font-family: var(--mono);
       display: flex;
       flex-direction: column;
@@ -931,7 +943,7 @@
     #zoneInfo.shrinking {
       color: #f0b0a0;
       border-color: rgba(220, 100, 80, 0.4);
-      background: rgba(40, 16, 16, 0.88);
+      background: linear-gradient(145deg, rgba(60, 20, 18, 0.82), rgba(28, 12, 12, 0.75));
     }
     .zone-top {
       display: flex;
@@ -983,12 +995,15 @@
       font-size: 9px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: rgba(201, 184, 150, 0.4);
+      color: rgba(201, 184, 150, 0.55);
       font-weight: 700;
-      background: rgba(0,0,0,0.28);
+      background: var(--glass);
       border: 1px solid var(--line);
       padding: 7px 10px;
       border-radius: 8px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
     }
 
     .hud-fs-btn {
@@ -999,20 +1014,22 @@
       height: 36px;
       border-radius: 10px;
       border: 1px solid var(--line);
-      background: rgba(10, 14, 16, 0.82);
+      background: var(--glass);
       color: var(--sand);
       font-size: 15px;
       cursor: pointer;
       pointer-events: auto;
       display: grid;
       place-items: center;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       transition: border-color 0.12s, color 0.12s, background 0.12s;
     }
     .hud-fs-btn:hover {
       border-color: rgba(212, 98, 46, 0.45);
       color: var(--paper);
-      background: rgba(20, 16, 14, 0.9);
+      background: rgba(212, 98, 46, 0.12);
     }
 
     /* —— Overlays —— */

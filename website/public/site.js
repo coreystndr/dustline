@@ -33,7 +33,10 @@ function setDownloadHref(version, directUrl) {
     a2.href = url;
     a2.setAttribute('download', '');
   }
-  if (ver) ver.textContent = `v${(version || '1.0.0').replace(/^v/, '')}`;
+  if (ver) {
+    const v = (version || '1.0.0').replace(/^v/, '');
+    ver.textContent = `Installer · v${v}`;
+  }
 }
 
 async function fetchJson(url) {
