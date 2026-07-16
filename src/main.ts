@@ -32,11 +32,12 @@ import {
   updateLobbyStatus,
   updateLobbyInfo,
   applyLobbyState,
+  resetLobbyUi,
   clearQueueLog,
   appendQueueLog,
   renderUpdateOverlay,
   notifyDustChanged,
-  type LobbyStateView,
+  type LobbyState,
 } from './ui';
 import { soundSystem } from './sound';
 import { LocalGameEngine } from './engine';
@@ -246,11 +247,7 @@ function setupEvents(): void {
     });
 
     tauriListen('lobby_state', (payload) => {
-      applyLobbyState(payload.payload as LobbyStateView);
-    });
-    tauriListen('lobby_roster', (payload) => {
-      // Legacy + enriched roster from backend
-      applyLobbyState(payload.payload as LobbyStateView);
+      applyLobbyState(payload.payload as LobbyState);
     });
 
     tauriListen('weapon_fired', (payload) => {
@@ -498,82 +495,63 @@ async function startBotMatchmakingSim(
   localEngine = null;
 
   switchScreen('lobby');
-  clearQueueLog();
-  applyLobbyState({
-    phase: 'searching',
-    members: 0,
-    status: 'Simulating matchmaking',
-    max_rounds: 5,
-    local_name: 'You',
-  });
-  appendQueueLog('Debug queue started (no Steam needed)', 'info');
-  appendQueueLog(`Your loadout: ${loadouts[0]} (+ Pistol)`, 'info');
+  resetLobbyUi();
+  appendQueueLog('Debug queue (no Steam)', 'info');
+  appendQueueLog(`Loadout ${loadouts[0]}`, 'info');
 
   const steps: Array<{
     ms: number;
     info: string;
     level: 'info' | 'ok' | 'warn';
-    lobby: LobbyStateView;
+    lobby: LobbyState;
   }> = [
     {
       ms: 400,
       info: 'Searching…',
       level: 'info',
-      lobby: { phase: 'searching', members: 0, local_name: 'You', status: 'Searching open lobbies…' },
+      lobby: { phase: 'searching', members: 0, you: 'You', status: 'Searching…' },
     },
     {
-      ms: 900,
-      info: 'No open lobby',
-      level: 'warn',
-      lobby: { phase: 'searching', members: 0, local_name: 'You', status: 'No open lobby — will host' },
-    },
-    {
-      ms: 1300,
-      info: 'Creating lobby…',
-      level: 'info',
-      lobby: { phase: 'hosting', members: 1, is_host: true, local_name: 'You', status: 'Creating lobby…', can_invite: false },
-    },
-    {
-      ms: 1800,
-      info: 'Hosting (1/2)',
+      ms: 1200,
+      info: 'Hosting',
       level: 'info',
       lobby: {
         phase: 'hosting',
         members: 1,
         is_host: true,
-        local_name: 'You',
+        you: 'You',
         lobby_id: 480001,
-        status: 'Lobby open — waiting',
+        status: 'Lobby open',
         can_invite: true,
       },
     },
     {
-      ms: 2600,
+      ms: 2200,
       info: 'Opponent joined',
       level: 'ok',
       lobby: {
-        phase: 'linked',
+        phase: 'ready',
         members: 2,
         is_host: true,
-        local_name: 'You',
-        peer_name: 'BOT',
+        you: 'You',
+        peer: 'BOT',
         peer_ready: true,
         lobby_id: 480001,
-        status: 'Linked · starting…',
+        status: 'Ready',
       },
     },
     {
-      ms: 3100,
-      info: 'Starting vs Bot',
+      ms: 2800,
+      info: 'Starting',
       level: 'ok',
       lobby: {
         phase: 'starting',
         members: 2,
         is_host: true,
-        local_name: 'You',
-        peer_name: 'BOT',
+        you: 'You',
+        peer: 'BOT',
         peer_ready: true,
-        status: 'Match starting',
+        status: 'Starting',
       },
     },
   ];
@@ -673,45 +651,22 @@ async function handleFindMatch(
   isGameRunning = false;
   pendingOnlineLoadout = { primary, skin, hat };
   switchScreen('lobby');
-  clearQueueLog();
-  applyLobbyState({
-    phase: 'searching',
-    members: 0,
-    is_host: false,
-    status: 'Connecting to Steam…',
-    max_rounds: 5,
-    can_invite: false,
-  });
-  appendQueueLog('Queue started · Best of 5', 'info');
+  resetLobbyUi();
   appendQueueLog(`Loadout ${primary} · ${skin} · ${hat}`, 'ok');
   setCameraFollow(localPlayerId);
 
   if (!tauriInvoke) {
-    applyLobbyState({
-      phase: 'error',
-      members: 0,
-      status: 'Steam app required',
-      can_invite: false,
-    });
-    updateLobbyInfo('Steam required — use Vs Bot for solo.');
-    appendQueueLog('Browser mode: no Steam P2P', 'err');
+    applyLobbyState({ phase: 'error', members: 0, status: 'Steam required', can_invite: false });
+    appendQueueLog('No Steam runtime — use Vs Bot', 'err');
     return;
   }
 
   try {
     await tauriInvoke('set_loadout', { primary, skin, hat });
     const result = await tauriInvoke('steam_find_match');
-    const msg = String(result);
-    updateLobbyStatus(msg);
-    appendQueueLog(msg, 'ok');
+    appendQueueLog(String(result), 'ok');
   } catch (e) {
-    applyLobbyState({
-      phase: 'error',
-      members: 0,
-      status: String(e),
-      can_invite: false,
-    });
-    updateLobbyInfo(String(e));
+    applyLobbyState({ phase: 'error', members: 0, status: String(e), can_invite: false });
     appendQueueLog(String(e), 'err');
   }
 }

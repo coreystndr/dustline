@@ -1,19 +1,23 @@
 {
-  "version": "1.0.11",
-  "notes": "Lobby state machine UI, faster Hello→start, persona names in queue, cleaner matchmaking status. Matchmaking dual-queue fix retained. Both need 1.0.11.",
-  "pub_date": "2026-07-16T04:40:11.709Z",
-  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.11_x64-setup.exe",
+  "version": "1.0.12",
+  "notes": "Steam networking refactor (steam_manager): cleaner lobby lifecycle, create/join/list APIs, lobby UI module. Both need 1.0.12.",
+  "pub_date": "2026-07-16T04:57:57.014Z",
+  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.12_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSGxsUEl5dEM2bExtU0RXK2ZyTk9vcXppZCt1Z3RrZFM0eDEvNkx1Z3ZCcXc0Y1FDYUwrKzZydWZlSUpycDhDekVQcjJJTjJEZW95cGR4OTBuL3J0Mnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTc2NzY2CWZpbGU6RFVTVExJTkVfMS4wLjExX3g2NC1zZXR1cC5leGUKMS9JcTd6UWloMlNMMjV3QnBCeXoydG1kZGVWaVkxcTJRQllESlJsanR3aTFYUHp0NUtXaWlGcFo4NmdjOVUrRUNZTlBFeWpVWjRwWGZISDlUelhNQVE9PQo=",
-      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.11_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSHZGaGZVSndPYkVwWlZPWWJzdVVhakc2aHcwZ1UyRG5uK0ZyRlNscUEyYVJiTmxGckpBbUFIdEZaQzA3RzZhWlkzb3VoR2ZWZ0dSZ3RZSHlWTnZuUmdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTc3ODY0CWZpbGU6RFVTVExJTkVfMS4wLjEyX3g2NC1zZXR1cC5leGUKM2F5cWl5MVJXVWxlYkdaZFRPWnNqUDFaZzFHZDdoMVZLNUFONzZNY082cEU2OEFvL3llRithTEZzcEFhNG8wMDlyM3RXNDFPMTEwUnR1bFkyTVkxQlE9PQo=",
+      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.12_x64-setup.exe"
     }
   },
   "mirrors": {
-    "github": "https://github.com/coreystndr/dustline/releases/latest/download/DUSTLINE_1.0.11_x64-setup.exe",
-    "vercel": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.11_x64-setup.exe"
+    "github": "https://github.com/coreystndr/dustline/releases/latest/download/DUSTLINE_1.0.12_x64-setup.exe",
+    "vercel": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.12_x64-setup.exe"
   },
   "history": [
+    {
+      "version": "1.0.11",
+      "notes": "Lobby state machine UI, faster Hello→start, persona names in queue, cleaner matchmaking status. Matchmaking dual-queue fix retained. Both need 1.0.11."
+    },
     {
       "version": "1.0.10",
       "notes": "v1.0.10: Matchmaking reliability (staggered create, lobby list union, dual-lobby merge/requeue) + multiplayer wait-for-player / P2 join / Best of 5. Both players need this build."

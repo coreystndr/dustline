@@ -670,197 +670,167 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    /* ── Lobby system ── */
-    .lobby-shell {
-      width: min(480px, 94%);
+    /* ── Lobby (from scratch) ── */
+    .lobby {
+      width: min(440px, 94%);
       background: var(--panel);
       border: 1px solid var(--line);
-      display: flex;
-      flex-direction: column;
     }
-    .lobby-top {
-      padding: 18px 18px 14px;
+    .lobby-hd {
+      padding: 16px 16px 12px;
       border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
     }
-    .lobby-top h2 {
-      font-size: 20px;
+    .lobby-hd h2 {
+      font-size: 18px;
       font-weight: 800;
       color: #ebe6da;
-      margin: 0 0 4px;
-    }
-    .lobby-phase-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-top: 10px;
+      margin: 2px 0 0;
     }
     .lobby-phase {
       font-family: var(--mono);
       font-size: 11px;
       font-weight: 700;
-      color: var(--rust);
-      letter-spacing: 0.04em;
       text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--warn);
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      white-space: nowrap;
     }
-    .lobby-phase[data-phase="searching"] { color: var(--warn); }
-    .lobby-phase[data-phase="hosting"] { color: var(--p1); }
-    .lobby-phase[data-phase="joining"] { color: var(--p2); }
-    .lobby-phase[data-phase="linked"] { color: #8ab870; }
+    .lobby-phase[data-phase="hosting"] { color: var(--p1); border-color: #5a3020; }
+    .lobby-phase[data-phase="joined"] { color: var(--p2); border-color: #2a4050; }
+    .lobby-phase[data-phase="ready"] { color: #8ab870; border-color: #2a4a28; }
     .lobby-phase[data-phase="starting"],
-    .lobby-phase[data-phase="in_match"] { color: var(--rust); }
+    .lobby-phase[data-phase="live"] { color: var(--rust); border-color: #5a3020; }
     .lobby-phase[data-phase="error"] { color: #d07060; }
-    .lobby-format {
-      font-size: 11px;
-      color: var(--mute);
-      font-family: var(--mono);
-    }
 
-    .lobby-steps {
+    #lobbySteps {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       border-bottom: 1px solid var(--line);
     }
-    .lobby-step {
-      padding: 8px 6px;
+    #lobbySteps .ls {
+      padding: 7px 4px;
       text-align: center;
       font-family: var(--mono);
       font-size: 9px;
       font-weight: 700;
       color: var(--faint);
-      border-right: 1px solid var(--line);
       background: var(--bg);
+      border-right: 1px solid var(--line);
     }
-    .lobby-step:last-child { border-right: none; }
-    .lobby-step.on { color: var(--ink); background: #161a16; }
-    .lobby-step.done { color: #6a9a58; }
-    .lobby-step .n {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 2px;
-    }
+    #lobbySteps .ls:last-child { border-right: 0; }
+    #lobbySteps .ls.on { color: var(--ink); background: #161a16; }
+    #lobbySteps .ls.done { color: #6a9a58; }
 
-    .lobby-body {
-      padding: 16px 18px;
-    }
+    .lobby-bd { padding: 14px 16px; }
 
-    .lobby-slots {
+    .seats {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       margin-bottom: 12px;
     }
-    .lobby-slot {
+    .seat {
       border: 1px solid var(--line);
       background: var(--bg);
-      padding: 12px 12px 10px;
-      min-height: 72px;
+      padding: 12px;
+      min-height: 78px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
     }
-    .lobby-slot .ls-tag {
+    .seat.p1.you { box-shadow: inset 3px 0 0 var(--p1); }
+    .seat.p2.you { box-shadow: inset 3px 0 0 var(--p2); }
+    .seat.filled { border-color: var(--line-hi); }
+    .seat-tag {
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       color: var(--mute);
     }
-    .lobby-slot.p1 .ls-tag { color: var(--p1); }
-    .lobby-slot.p2 .ls-tag { color: var(--p2); }
-    .lobby-slot .ls-name {
+    .seat.p1 .seat-tag { color: var(--p1); }
+    .seat.p2 .seat-tag { color: var(--p2); }
+    .seat-name {
       font-size: 14px;
       font-weight: 700;
-      color: var(--mute);
+      color: var(--faint);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .lobby-slot .ls-state {
+    .seat.filled .seat-name { color: var(--ink); }
+    .seat-state {
       font-family: var(--mono);
       font-size: 10px;
-      font-weight: 600;
       color: var(--faint);
+      font-weight: 600;
     }
-    .lobby-slot.filled {
-      border-color: var(--line-hi);
-      background: #121612;
-    }
-    .lobby-slot.filled .ls-name { color: var(--ink); }
-    .lobby-slot.filled .ls-state { color: #8ab870; }
-    .lobby-slot.empty .ls-name { color: var(--faint); font-weight: 600; }
-    .lobby-slot.host-you {
-      box-shadow: inset 3px 0 0 var(--p1);
-    }
-    .lobby-slot.you-p2 {
-      box-shadow: inset 3px 0 0 var(--p2);
-    }
+    .seat.filled .seat-state { color: #8ab870; }
 
-    .lobby-scan {
+    #lobbyScan {
       height: 2px;
       background: var(--line);
       margin: 0 0 12px;
       overflow: hidden;
       position: relative;
     }
-    .lobby-scan.active::after {
+    #lobbyScan.on::after {
       content: "";
       position: absolute;
-      top: 0; bottom: 0;
-      left: -25%;
-      width: 25%;
+      inset: 0 auto 0 0;
+      width: 28%;
       background: var(--rust);
-      animation: scan 1.2s linear infinite;
+      animation: lobbyScan 1.1s linear infinite;
     }
-    @keyframes scan { to { left: 100%; } }
+    @keyframes lobbyScan {
+      from { left: -30%; }
+      to { left: 100%; }
+    }
 
     #lobbyInfo {
       font-size: 13px;
       font-weight: 600;
       color: var(--ink);
       margin-bottom: 4px;
-      min-height: 20px;
+      min-height: 18px;
     }
     #lobbyStatus {
       font-family: var(--mono);
       font-size: 11px;
       color: var(--mute);
-      min-height: 16px;
+      min-height: 14px;
       margin-bottom: 10px;
       line-height: 1.35;
     }
     #lobbyMeta {
-      font-size: 11px;
-      color: var(--mute);
-      font-family: var(--mono);
-      margin-bottom: 0;
-    }
-
-    .lobby-id-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       font-family: var(--mono);
       font-size: 10px;
       color: var(--faint);
-      margin-bottom: 12px;
-      gap: 8px;
+      margin-bottom: 8px;
     }
-    .lobby-id-row b {
-      color: var(--mute);
-      font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .lobby-id {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--faint);
+      margin-bottom: 10px;
     }
+    .lobby-id b { color: var(--mute); font-weight: 700; }
 
     .queue-log {
-      width: 100%;
-      max-height: 88px;
+      max-height: 72px;
       overflow-y: auto;
-      text-align: left;
       background: var(--bg);
       border: 1px solid var(--line);
       padding: 6px 8px;
-      margin-bottom: 12px;
+      margin-bottom: 0;
       font-family: var(--mono);
       font-size: 10px;
       line-height: 1.35;
@@ -873,20 +843,15 @@
     .queue-log .log-line.err { color: #d07060; }
     .queue-log .log-line.info { color: #7a9ab0; }
 
-    .lobby-actions {
+    .lobby-ft {
+      padding: 12px 16px 14px;
+      border-top: 1px solid var(--line);
       display: flex;
       flex-direction: column;
       gap: 6px;
-      padding: 0 18px 16px;
     }
-    .lobby-actions .menu-btn {
-      width: 100%;
-      text-align: center;
-    }
-    .lobby-actions .menu-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    .lobby-ft .menu-btn { width: 100%; text-align: center; }
+    .lobby-ft .menu-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── HUD ── */
     #hud {
@@ -1541,49 +1506,46 @@
     <div id="lobbyScreen" class="screen">
       <div class="screen-bg"></div>
       <div class="screen-content">
-        <div class="lobby-shell">
-          <div class="lobby-top">
-            <div class="page-kicker">online</div>
-            <h2>Lobby</h2>
-            <div class="lobby-phase-row">
-              <span class="lobby-phase" id="lobbyPhase" data-phase="searching">Searching</span>
-              <span class="lobby-format" id="lobbyMeta">Best of 5 · first to 3</span>
+        <div class="lobby">
+          <div class="lobby-hd">
+            <div>
+              <div class="page-kicker">online 1v1</div>
+              <h2>Lobby</h2>
             </div>
+            <span class="lobby-phase" id="lobbyPhase" data-phase="searching">Searching</span>
           </div>
 
-          <div class="lobby-steps" id="lobbySteps" aria-hidden="true">
-            <div class="lobby-step" data-step="search"><span class="n">1</span>Search</div>
-            <div class="lobby-step" data-step="lobby"><span class="n">2</span>Lobby</div>
-            <div class="lobby-step" data-step="link"><span class="n">3</span>Link</div>
-            <div class="lobby-step" data-step="start"><span class="n">4</span>Start</div>
+          <div id="lobbySteps" aria-hidden="true">
+            <div class="ls">Search</div>
+            <div class="ls">Lobby</div>
+            <div class="ls">Ready</div>
+            <div class="ls">Fight</div>
           </div>
 
-          <div class="lobby-body">
-            <div class="lobby-slots" id="lobbySlots" aria-live="polite">
-              <div class="lobby-slot p1 empty" id="slotP1">
-                <span class="ls-tag">P1 · HOST</span>
-                <span class="ls-name">—</span>
-                <span class="ls-state">empty</span>
+          <div class="lobby-bd">
+            <div class="seats" aria-live="polite">
+              <div class="seat p1" id="seat0">
+                <span class="seat-tag">HOST</span>
+                <span class="seat-name">—</span>
+                <span class="seat-state">empty</span>
               </div>
-              <div class="lobby-slot p2 empty" id="slotP2">
-                <span class="ls-tag">P2 · GUEST</span>
-                <span class="ls-name">—</span>
-                <span class="ls-state">empty</span>
+              <div class="seat p2" id="seat1">
+                <span class="seat-tag">GUEST</span>
+                <span class="seat-name">—</span>
+                <span class="seat-state">empty</span>
               </div>
             </div>
-            <div class="lobby-scan" id="lobbyScan" aria-hidden="true"></div>
+            <div id="lobbyScan" aria-hidden="true"></div>
             <p id="lobbyInfo">Connecting…</p>
             <p id="lobbyStatus"></p>
-            <div class="lobby-id-row">
-              <span>LOBBY</span>
-              <b id="lobbyIdLabel">—</b>
-            </div>
+            <p id="lobbyMeta">Best of 5 · first to 3</p>
+            <div class="lobby-id"><span>ID</span><b id="lobbyId">—</b></div>
             <div class="queue-log" id="queueLog" aria-live="polite"></div>
           </div>
 
-          <div class="lobby-actions">
+          <div class="lobby-ft">
             <button class="menu-btn primary" id="btnInviteFriends" type="button" disabled>
-              Invite Friend <span class="btn-hint">Steam</span>
+              Invite Friend
             </button>
             <button class="menu-btn ghost" id="btnLeaveLobby" type="button">Leave</button>
           </div>

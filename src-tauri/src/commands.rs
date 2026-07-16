@@ -268,15 +268,42 @@ pub fn steam_invite_friends(
     steam.invite_friends(state.inner())
 }
 
-/// Kept for debugging / manual lobbies
+/// Create lobby with visibility: "public" | "friends" | "private".
 #[tauri::command]
 pub fn steam_create_lobby(
+    app: AppHandle,
     state: State<'_, Arc<SharedGameState>>,
     steam: State<'_, Option<Arc<SteamRuntime>>>,
+    visibility: Option<String>,
 ) -> Result<String, String> {
-    steam_find_match(state, steam)
+    let steam = steam.inner().clone().ok_or_else(|| {
+        "Steam not available.".to_string()
+    })?;
+    let vis = match visibility.as_deref().unwrap_or("public") {
+        "friends" | "friends_only" | "FriendsOnly" => {
+            crate::steam_manager::LobbyVisibility::FriendsOnly
+        }
+        "private" | "Private" => crate::steam_manager::LobbyVisibility::Private,
+        _ => crate::steam_manager::LobbyVisibility::Public,
+    };
+    steam.create_lobby_api(app, vis, state.inner().clone());
+    Ok(format!("Creating {:?} lobby…", vis))
 }
 
+/// Request lobby browser list (results via `steam_event` type `lobby_list`).
+#[tauri::command]
+pub fn steam_request_lobby_list(
+    app: AppHandle,
+    steam: State<'_, Option<Arc<SteamRuntime>>>,
+) -> Result<String, String> {
+    let steam = steam.inner().clone().ok_or_else(|| {
+        "Steam not available.".to_string()
+    })?;
+    steam.request_lobby_list_api(app);
+    Ok("RequestLobbyList…".into())
+}
+
+/// Join lobby by Steam lobby id.
 #[tauri::command]
 pub fn steam_join_lobby(
     app: AppHandle,
@@ -288,15 +315,23 @@ pub fn steam_join_lobby(
         "Steam not available.".to_string()
     })?;
     if let Some(id) = lobby_id {
-        steam.accept_lobby_invite(
-            state.inner().clone(),
-            &app,
-            steamworks::LobbyId::from_raw(id),
-        );
+        steam.join_lobby_api(app, id, state.inner().clone());
         return Ok(format!("Joining lobby {id}…"));
     }
+    // No id → auto-queue
     let shared = state.inner().clone();
     steam.find_match(shared)
+}
+
+/// Current Steam session snapshot (state, lobby, handshake).
+#[tauri::command]
+pub fn steam_session(
+    steam: State<'_, Option<Arc<SteamRuntime>>>,
+) -> Result<serde_json::Value, String> {
+    let steam = steam.inner().clone().ok_or_else(|| {
+        "Steam not available.".to_string()
+    })?;
+    Ok(steam.mgr.ui_snapshot())
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

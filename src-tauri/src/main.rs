@@ -3,6 +3,7 @@
 mod commands;
 mod game;
 mod network;
+mod steam_manager;
 mod steam_net;
 
 use std::collections::HashMap;
@@ -272,7 +273,9 @@ fn main() {
             commands::steam_cancel_matchmaking,
             commands::steam_invite_friends,
             commands::steam_create_lobby,
+            commands::steam_request_lobby_list,
             commands::steam_join_lobby,
+            commands::steam_session,
             commands::steam_lobby_ready,
         ])
         .run(tauri::generate_context!())
