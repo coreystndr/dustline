@@ -89,8 +89,15 @@ export interface InputState {
 export interface SoundEvent {
   event_type?: string;
   WeaponFired?: { weapon_type: string; x: number; y: number };
-  PlayerHit?: { x: number; y: number };
-  PlayerDied?: { x: number; y: number };
+  PlayerHit?: {
+    x: number;
+    y: number;
+    damage?: number;
+    target_id?: number;
+    source_id?: number;
+    crit?: boolean;
+  };
+  PlayerDied?: { x: number; y: number; target_id?: number };
   RoundEnd?: object;
   WeaponPickup?: { weapon_type: string };
   Reload?: { weapon_type: string };
@@ -110,7 +117,8 @@ export type ParticleKind =
   | 'glow'
   | 'flash'
   | 'ember'
-  | 'trail';
+  | 'trail'
+  | 'dmg';
 
 export interface Particle {
   x: number;
@@ -130,4 +138,7 @@ export interface Particle {
   /** Additive glow */
   additive?: boolean;
   alpha?: number;
+  /** Floating combat text (kind === 'dmg') */
+  text?: string;
+  crit?: boolean;
 }

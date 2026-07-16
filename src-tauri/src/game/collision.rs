@@ -95,7 +95,8 @@ pub fn process_projectile_collisions(
     projectiles: &mut Vec<Projectile>,
     players: &[Player],
     arena: &Arena,
-) -> Vec<(u64, u8, i32)> {
+) -> Vec<(u8, u8, i32)> {
+    // (source_id, target_id, damage)
     let mut hits = Vec::new();
 
     for proj in projectiles.iter_mut() {
@@ -112,7 +113,7 @@ pub fn process_projectile_collisions(
         }
         for player in players.iter() {
             if projectile_hits_player(proj, player) {
-                hits.push((proj.id, player.id, proj.damage));
+                hits.push((proj.owner_id, player.id, proj.damage));
                 if !proj.penetrate {
                     proj.deactivate();
                 }

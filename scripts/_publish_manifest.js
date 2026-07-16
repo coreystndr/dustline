@@ -1,16 +1,17 @@
 ﻿const fs=require('fs');
-const sig=fs.readFileSync('src-tauri/target/release/bundle/nsis/DUSTLINE_1.0.3_x64-setup.exe.sig','utf8').trim();
-const notes='New main menu: tactical split layout, island backdrop, storm ring. Matchmaking + auto-update pipeline. steam_api64.dll included.';
+const sig=fs.readFileSync('src-tauri/target/release/bundle/nsis/DUSTLINE_1.0.4_x64-setup.exe.sig','utf8').trim();
+const notes='Combat feedback: hitmarker (white/gold/red), floating damage numbers, hurt flash, impact VFX. Works local, bot, and online.';
 const site='https://website-red-six-83.vercel.app';
-const gh='https://github.com/coreystndr/dustline/releases/download/v1.0.3';
-const setup='DUSTLINE_1.0.3_x64-setup.exe';
+const gh='https://github.com/coreystndr/dustline/releases/download/v1.0.4';
+const setup='DUSTLINE_1.0.4_x64-setup.exe';
 const latest={
-  version:'1.0.3',
+  version:'1.0.4',
   notes,
   pub_date:new Date().toISOString(),
   installer_url:site+'/downloads/'+setup,
   platforms:{'windows-x86_64':{signature:sig,url:site+'/downloads/'+setup}},
   history:[
+    {version:'1.0.3',notes:'New main menu'},
     {version:'1.0.2',notes:'Updater key UX'},
     {version:'1.0.1',notes:'Matchmaking fix'},
     {version:'1.0.0',notes:'Initial'}

@@ -11,6 +11,12 @@ import {
 import { OBSTACLES, ISLAND_CX, ISLAND_CY, ISLAND_R, ARENA_W, ARENA_H } from './engine';
 import { getSkin, WeaponSkinPalette } from './skins';
 import type { WeaponType } from './weapons';
+import {
+  updateCombatFx,
+  getHitmarker,
+  getHurtFlash,
+  getOverlayParticles,
+} from './combatFx';
 
 const C = {
   void: '#081014',
@@ -641,6 +647,7 @@ function updateCamera(dt: number, state: GameState): void {
 export function render(deltaTime: number): void {
   if (!ctx || !nextState) return;
   time += deltaTime;
+  updateCombatFx(deltaTime);
   updateCamera(deltaTime, nextState);
 
   ctx.fillStyle = C.void;
@@ -677,11 +684,18 @@ export function render(deltaTime: number): void {
   drawProjectiles(nextState.projectiles);
   for (const player of nextState.players) drawPlayer(player);
   drawParticles();
+  // Online / event FX layered on top
+  const saved = particles;
+  particles = getOverlayParticles();
+  if (particles.length) drawParticles();
+  particles = saved;
 
   ctx.restore();
 
   // Screen-space post
   drawVignette();
+  drawHurtFlash();
+  drawHitmarker();
   drawMinimap(nextState);
   drawAimCursor();
 }
@@ -695,6 +709,75 @@ function drawVignette(): void {
   g.addColorStop(1, 'rgba(0,0,0,0.38)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
+}
+
+/** Red edges + brief full-screen punch when local player takes damage */
+function drawHurtFlash(): void {
+  const h = getHurtFlash();
+  if (h <= 0.01) return;
+  const a = Math.min(1, h);
+  // Edge vignette
+  const g = ctx.createRadialGradient(
+    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.18,
+    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.78
+  );
+  g.addColorStop(0, 'rgba(180, 20, 20, 0)');
+  g.addColorStop(0.55, `rgba(160, 20, 20, ${0.08 * a})`);
+  g.addColorStop(1, `rgba(120, 8, 8, ${0.55 * a})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, ARENA_W, ARENA_H);
+  // Center flash pulse at start of hurt
+  if (a > 0.65) {
+    ctx.fillStyle = `rgba(255, 40, 30, ${(a - 0.65) * 0.35})`;
+    ctx.fillRect(0, 0, ARENA_W, ARENA_H);
+  }
+}
+
+/** Classic FPS hitmarker — white / gold on crit / red on kill */
+function drawHitmarker(): void {
+  const { t, crit, kill } = getHitmarker();
+  if (t <= 0.02) return;
+
+  const cx = ARENA_W / 2;
+  const cy = ARENA_H / 2;
+  const expand = (1 - t) * 6;
+  const len = 7 + expand * 0.4;
+  const gap = 4 + expand * 0.15;
+  const thick = crit || kill ? 2.4 : 1.8;
+
+  let color = `rgba(244, 239, 228, ${Math.min(1, t * 1.2)})`;
+  if (kill) color = `rgba(230, 70, 50, ${Math.min(1, t * 1.25)})`;
+  else if (crit) color = `rgba(255, 220, 110, ${Math.min(1, t * 1.25)})`;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = thick;
+  ctx.lineCap = 'square';
+  // Four diagonal ticks around center
+  const arms: Array<[number, number, number, number]> = [
+    [-gap - len, -gap - len, -gap, -gap],
+    [gap, -gap, gap + len, -gap - len],
+    [-gap - len, gap + len, -gap, gap],
+    [gap, gap, gap + len, gap + len],
+  ];
+  ctx.beginPath();
+  for (const [x0, y0, x1, y1] of arms) {
+    ctx.moveTo(cx + x0, cy + y0);
+    ctx.lineTo(cx + x1, cy + y1);
+  }
+  ctx.stroke();
+
+  // Soft outer glow
+  if (crit || kill) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = kill
+      ? `rgba(255, 80, 40, ${t * 0.35})`
+      : `rgba(255, 220, 100, ${t * 0.35})`;
+    ctx.lineWidth = thick + 2;
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.restore();
 }
 
 function drawAimCursor(): void {
@@ -1035,6 +1118,35 @@ function drawParticles(): void {
     ctx.globalAlpha = Math.min(1, a);
 
     switch (p.kind) {
+      case 'dmg': {
+        // Floating combat text
+        const scale = p.crit ? 1 + (1 - t) * 0.15 : 1;
+        const fontPx = Math.round(p.size * scale);
+        ctx.save();
+        ctx.font = `800 ${fontPx}px "Segoe UI", system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const label = p.text ?? '';
+        // Shadow
+        ctx.fillStyle = `rgba(0,0,0,${0.55 * a})`;
+        ctx.fillText(label, p.x + 1, p.y + 1);
+        // Outline
+        ctx.lineWidth = p.crit ? 3.5 : 2.5;
+        ctx.strokeStyle = `rgba(10, 8, 6, ${0.75 * a})`;
+        ctx.strokeText(label, p.x, p.y);
+        // Fill
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.min(1, a * 1.15);
+        ctx.fillText(label, p.x, p.y);
+        // Crit sparkle bar
+        if (p.crit && t > 0.5) {
+          ctx.globalAlpha = (t - 0.5) * 1.4 * a;
+          ctx.fillStyle = '#fff6c8';
+          ctx.fillText(label, p.x, p.y);
+        }
+        ctx.restore();
+        break;
+      }
       case 'ring': {
         const r = (p.radius ?? p.size) * (1.2 - t * 0.2);
         ctx.strokeStyle = p.color;

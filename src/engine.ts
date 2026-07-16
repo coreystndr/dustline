@@ -14,6 +14,7 @@ import {
   vfxFootDust,
   vfxExplosion,
 } from './vfx';
+import { onDealtDamage, onTookDamage } from './combatFx';
 
 const GRENADE_START = 2;
 const GRENADE_COOLDOWN = 1.15;
@@ -254,6 +255,12 @@ export class LocalGameEngine {
   private p2PrevDash = false;
   private p2PrevGrenade = false;
   private screenShake = 0;
+  /** Who gets hurt-flash / whose hits show hitmarker. null = both (local 2P). */
+  feedbackFocusId: number | null = 0;
+
+  setFeedbackFocus(id: number | null): void {
+    this.feedbackFocusId = id;
+  }
 
   constructor() {
     this.resetMatch();
@@ -387,7 +394,12 @@ export class LocalGameEngine {
       p.y += p.vy * deltaTime;
       // Gravity-ish for shells / blood
       if (p.kind === 'shell' || p.kind === 'blood') p.vy += 280 * deltaTime;
-      if (p.kind === 'smoke' || p.kind === 'dust') {
+      if (p.kind === 'dmg') {
+        // Float up, ease out
+        p.vy *= 0.94;
+        p.vx *= 0.9;
+        p.vy -= 8 * deltaTime;
+      } else if (p.kind === 'smoke' || p.kind === 'dust') {
         p.vx *= 0.92;
         p.vy *= 0.92;
         p.vy -= 12 * deltaTime;
@@ -533,20 +545,22 @@ export class LocalGameEngine {
           vfxHit(this.sp, proj.x, proj.y, hitCol, isCrit);
           this.screenShake = Math.min(1.2, this.screenShake + (isCrit ? 0.4 : 0.22));
 
-          // Floating damage number
-          this.spawnParticle({
-            x: c.x + (Math.random() - 0.5) * 8,
-            y: c.y - 10,
-            vx: (Math.random() - 0.5) * 20,
-            vy: -40,
-            life: 0.55,
-            size: isCrit ? 14 : 11,
-            color: isCrit ? '#ffe08a' : '#f4efe4',
-            kind: 'spark',
-            alpha: 1,
-          });
+          const killed = player.takeDamage(dmg);
+          const focus = this.feedbackFocusId;
+          const iAmAttacker = focus === null || proj.ownerId === focus;
+          const iAmVictim = focus === null || player.id === focus;
 
-          if (player.takeDamage(dmg)) {
+          // Floating damage always visible
+          onDealtDamage(this.sp, proj.x, c.y - 6, dmg, {
+            crit: isCrit,
+            kill: killed,
+            showHitmarker: iAmAttacker,
+          });
+          if (iAmVictim) {
+            onTookDamage(isCrit ? 0.95 : 0.55 + Math.min(0.35, dmg / 80));
+          }
+
+          if (killed) {
             soundSystem.play('death', c.x, c.y);
             vfxDeath(this.sp, c.x, c.y);
             this.screenShake = 1.45;
@@ -608,7 +622,17 @@ export class LocalGameEngine {
         const dx = c.x - this.zoneX;
         const dy = c.y - this.zoneY;
         if (dx * dx + dy * dy > this.zoneRadius * this.zoneRadius) {
-          if (p.takeDamage(4)) {
+          const killed = p.takeDamage(4);
+          onDealtDamage(this.sp, c.x, c.y - 10, 4, {
+            crit: false,
+            kill: killed,
+            showHitmarker: false,
+          });
+          if (this.feedbackFocusId === null || p.id === this.feedbackFocusId) {
+            onTookDamage(0.45);
+          }
+          this.screenShake = Math.min(1.1, this.screenShake + 0.12);
+          if (killed) {
             soundSystem.play('death', c.x, c.y);
             this.endRound(p.id === 0 ? 1 : 0);
           }
@@ -790,13 +814,26 @@ export class LocalGameEngine {
       const dmg = Math.max(8, Math.round(GRENADE_DAMAGE * falloff));
 
       // Friendly fire ON (both can hurt self / each other — classic duel)
-      if (player.takeDamage(dmg)) {
+      const crit = t < 0.35;
+      const killed = player.takeDamage(dmg);
+      vfxHit(this.sp, c.x, c.y, player.id === 0 ? '#e07a5f' : '#5aa8ff', crit);
+      const focus = this.feedbackFocusId;
+      const iAmAttacker = focus === null || g.ownerId === focus;
+      const iAmVictim = focus === null || player.id === focus;
+      onDealtDamage(this.sp, c.x, c.y - 8, dmg, {
+        crit,
+        kill: killed,
+        showHitmarker: iAmAttacker,
+      });
+      if (iAmVictim) {
+        onTookDamage(crit ? 1.0 : 0.65 + (1 - t) * 0.3);
+      }
+      this.screenShake = Math.min(1.4, this.screenShake + (crit ? 0.35 : 0.18));
+      if (killed) {
         soundSystem.play('death', c.x, c.y);
         vfxDeath(this.sp, c.x, c.y);
         // Winner is the other living player, or thrower if suicide
         killedBy = player.id === 0 ? 1 : 0;
-      } else {
-        vfxHit(this.sp, c.x, c.y, player.id === 0 ? '#e07a5f' : '#5aa8ff', t < 0.35);
       }
     }
 

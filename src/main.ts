@@ -46,6 +46,13 @@ import {
   subscribeUpdateUi,
   isUpdaterAvailable,
 } from './updater';
+import {
+  feedbackHitFromEvent,
+  resetCombatFx,
+  onTookDamage,
+  spawnOverlayParticle,
+} from './combatFx';
+import { vfxHit, vfxDeath } from './vfx';
 
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
 let tauriListen: ((event: string, handler: (payload: { payload: unknown }) => void) => Promise<() => void>) | null = null;
@@ -238,12 +245,43 @@ function setupEvents(): void {
 
     tauriListen('player_hit', (payload) => {
       const event = payload.payload as SoundEvent;
-      if (event.PlayerHit) soundSystem.play('hit', event.PlayerHit.x, event.PlayerHit.y);
+      const hit = event.PlayerHit;
+      if (!hit) return;
+      soundSystem.play('hit', hit.x, hit.y);
+      const dmg = hit.damage ?? 10;
+      const targetId = hit.target_id ?? -1;
+      const sourceId = hit.source_id ?? -1;
+      const iAmAttacker = sourceId === localPlayerId;
+      const iAmVictim = targetId === localPlayerId;
+      feedbackHitFromEvent({
+        x: hit.x,
+        y: hit.y,
+        damage: dmg,
+        iAmAttacker,
+        iAmVictim,
+        crit: dmg >= 40,
+      });
+      // World impact particles
+      const sp = spawnOverlayParticle;
+      vfxHit(
+        sp,
+        hit.x,
+        hit.y,
+        dmg >= 40 ? '#ffe08a' : targetId === 0 ? '#e07a5f' : '#5aa8ff',
+        dmg >= 40
+      );
+      if (iAmVictim) setScreenShake(0.35 + Math.min(0.4, dmg / 100));
+      else if (iAmAttacker) setScreenShake(0.18 + (dmg >= 40 ? 0.15 : 0));
     });
 
     tauriListen('player_died', (payload) => {
       const event = payload.payload as SoundEvent;
-      if (event.PlayerDied) soundSystem.play('death', event.PlayerDied.x, event.PlayerDied.y);
+      const died = event.PlayerDied;
+      if (!died) return;
+      soundSystem.play('death', died.x, died.y);
+      vfxDeath(spawnOverlayParticle, died.x, died.y);
+      setScreenShake(0.9);
+      if (died.target_id === localPlayerId) onTookDamage(1.1);
     });
 
     tauriListen('round_end', () => soundSystem.play('round_end'));
@@ -283,6 +321,7 @@ function startLocalWithLoadout(
   skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN]
 ): void {
   cancelBotSim();
+  resetCombatFx();
   isLocalPlay = true;
   isOnline = false;
   isBotMatch = false;
@@ -290,6 +329,7 @@ function startLocalWithLoadout(
   localEngine = new LocalGameEngine();
   localEngine.setLoadouts(loadouts[0], loadouts[1]);
   localEngine.setSkins(skins[0], skins[1]);
+  localEngine.setFeedbackFocus(null); // both players local
   localEngine.resetMatch();
   lastRoundState = '';
   matchTimeAccum = 0;
@@ -360,6 +400,7 @@ async function startBotMatchmakingSim(
   const botSkin: SkinId =
     skins[0] === 'shadow' ? 'ember' : skins[0] === 'ember' ? 'ocean' : 'shadow';
   localEngine.setSkins(skins[0], botSkin);
+  localEngine.setFeedbackFocus(0); // human only for hitmarker / hurt flash
   localEngine.resetMatch();
   lastRoundState = '';
   matchTimeAccum = 0;

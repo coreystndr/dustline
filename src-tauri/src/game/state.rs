@@ -25,10 +25,14 @@ pub enum SoundEvent {
     PlayerHit {
         x: f64,
         y: f64,
+        damage: i32,
+        target_id: u8,
+        source_id: u8,
     },
     PlayerDied {
         x: f64,
         y: f64,
+        target_id: u8,
     },
     RoundEnd,
     WeaponPickup {
@@ -322,17 +326,21 @@ impl GameState {
                     &self.arena,
                 );
 
-                for (_proj_id, target_id, damage) in hits {
+                for (source_id, target_id, damage) in hits {
                     if let Some(player) = self.players.iter_mut().find(|p| p.id == target_id) {
                         let center = player.center();
                         if player.take_damage(damage) {
                             events.push(SoundEvent::PlayerHit {
                                 x: center.0,
                                 y: center.1,
+                                damage,
+                                target_id,
+                                source_id,
                             });
                             events.push(SoundEvent::PlayerDied {
                                 x: center.0,
                                 y: center.1,
+                                target_id,
                             });
                             let other = if target_id == 0 { 1 } else { 0 };
                             self.end_round(other);
@@ -341,6 +349,9 @@ impl GameState {
                             events.push(SoundEvent::PlayerHit {
                                 x: center.0,
                                 y: center.1,
+                                damage,
+                                target_id,
+                                source_id,
                             });
                         }
                     }
