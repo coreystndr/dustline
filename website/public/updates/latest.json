@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "notes": "Initial public build.\n\n• Island 1v1 with storm, loot, grenades\n• Loadouts + weapon skins\n• Steam matchmaking + bot debug\n• Custom in-game auto-updater",
+  "pub_date": "2026-07-16T12:00:00Z",
+  "installer_url": "/downloads/DUSTLINE_1.0.0_x64-setup.exe",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "REPLACE_WITH_NSIS_ZIP_SIGNATURE_AFTER_BUILD",
+      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.0_x64-setup.nsis.zip"
+    }
+  },
+  "history": []
+}
+

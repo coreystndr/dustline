@@ -1,0 +1,10 @@
+{
+  "name": "dustline-site",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx --yes serve public -l 3000",
+    "build": "node -e \"console.log('static site — public/ is output')\"",
+    "vercel-build": "node -e \"console.log('static site — public/ is output')\""
+  }
+}

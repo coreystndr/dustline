@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DUSTLINE",
+  "version": "1.0.0",
+  "identifier": "com.dustline.game",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "DUSTLINE",
+        "width": 1280,
+        "height": 720,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "category": "Game",
+    "shortDescription": "1v1 island top-down shooter",
+    "longDescription": "DUSTLINE is a fast 1v1 top-down island duel with storm zones, loadouts, grenades, Steam matchmaking and auto-updates.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "steam_api64.dll",
+      "steam_appid.txt"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5Nzk5REE0MzE2QUZENzYKUldSMi9Xb3hwSjE1K1RDV2xRVWtoazhySGF1dVNFVS9nWFRLeVhuZUtaUFFNNFFFamtNSVBidDAK",
+      "endpoints": [
+        "https://website-red-six-83.vercel.app/updates/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
