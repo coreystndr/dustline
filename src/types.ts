@@ -39,6 +39,8 @@ export interface PlayerSnapshot {
   weapon_type?: string;
   /** Skin id applied to current weapon model */
   skin_id?: string;
+  /** Cosmetic hat id on the player */
+  hat_id?: string;
   ammo_display: string;
   is_alive: boolean;
   dash_cooldown: number;

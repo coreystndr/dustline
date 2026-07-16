@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use network::{NetworkEvent, SharedGameState, CHANNEL_EVENTS, CHANNEL_STATE};
+use network::{ClientInput, NetworkEvent, SharedGameState, CHANNEL_EVENTS, CHANNEL_STATE};
 use steam_net::{spawn_steam_thread, SteamRuntime};
 use tauri::Emitter;
 
@@ -47,7 +47,6 @@ fn spawn_game_loop(app_handle: tauri::AppHandle, shared_state: Arc<SharedGameSta
 
                 // Host with Steam only sims once match has started (countdown included).
                 if steam_ready && is_host && !match_started {
-                    // Still allow countdown if already in countdown/playing from earlier
                     let skip = shared_state
                         .game_state
                         .lock()
@@ -64,27 +63,24 @@ fn spawn_game_loop(app_handle: tauri::AppHandle, shared_state: Arc<SharedGameSta
                     }
                 }
 
-                let (events, should_emit_state) = {
+                let (events, should_emit_state, in_countdown, snapshot) = {
                     let mut game = match shared_state.game_state.lock() {
                         Ok(g) => g,
                         Err(_) => continue,
                     };
 
-                    // Coalesce: keep latest input per player by tick
-                    let mut latest: HashMap<u8, network::ClientInput> = HashMap::new();
+                    // Coalesce: keep latest continuous fields, OR action edges
+                    let mut latest: HashMap<u8, ClientInput> = HashMap::new();
                     if let Ok(mut pending) = shared_state.pending_inputs.lock() {
                         for (pid, inp) in pending.drain(..) {
-                            let replace = latest
-                                .get(&pid)
-                                .map(|prev| inp.tick >= prev.tick)
-                                .unwrap_or(true);
-                            if replace {
-                                latest.insert(pid, inp);
-                            }
+                            latest
+                                .entry(pid)
+                                .and_modify(|prev| prev.coalesce_with(&inp))
+                                .or_insert(inp);
                         }
                     }
 
-                    // Drop stale vs last_input_tick
+                    // Drop stale vs last_input_tick; store sticky held input
                     if let Ok(mut net) = shared_state.network_manager.lock() {
                         latest.retain(|pid, inp| {
                             let idx = (*pid as usize).min(1);
@@ -96,6 +92,25 @@ fn spawn_game_loop(app_handle: tauri::AppHandle, shared_state: Arc<SharedGameSta
                             }
                             true
                         });
+                        // Update held from fresh packets
+                        for (pid, inp) in &latest {
+                            let idx = (*pid as usize).min(1);
+                            net.held_input[idx] = Some(inp.clone());
+                        }
+                        // Re-apply held when no packet this tick (smooth movement)
+                        for pid in [0u8, 1u8] {
+                            if !latest.contains_key(&pid) {
+                                if let Some(held) = net.held_input[pid as usize].clone() {
+                                    // Don't re-fire one-shot edges every tick
+                                    let mut sticky = held;
+                                    sticky.weapon_switch = false;
+                                    sticky.reload = false;
+                                    sticky.dash = false;
+                                    sticky.grenade = false;
+                                    latest.insert(pid, sticky);
+                                }
+                            }
+                        }
                     }
 
                     let mut events = Vec::new();
@@ -118,8 +133,12 @@ fn spawn_game_loop(app_handle: tauri::AppHandle, shared_state: Arc<SharedGameSta
                     let update_events = game.update(delta_secs);
                     events.extend(update_events);
 
-                    let should_emit = game.tick % 2 == 0;
-                    (events, should_emit)
+                    let in_countdown =
+                        matches!(game.round_state, game::state::RoundState::Countdown);
+                    // Emit every tick for smooth local UI; net rate handled below
+                    let should_emit = true;
+                    let snapshot = commands::GameStateSnapshot::from_state(&game);
+                    (events, should_emit, in_countdown, snapshot)
                 };
 
                 // Local UI events + network combat FX to peer
@@ -147,17 +166,22 @@ fn spawn_game_loop(app_handle: tauri::AppHandle, shared_state: Arc<SharedGameSta
                 }
 
                 if should_emit_state {
-                    let snapshot = {
-                        let game = shared_state.game_state.lock().unwrap();
-                        commands::GameStateSnapshot::from_state(&game)
-                    };
                     let _ = app_handle.emit("game_state", serde_json::to_value(&snapshot).ok());
 
                     if is_host && remote_ok {
+                        // Countdown / early playing: reliable so P2 never skips START
+                        // Steady playing: unreliable latest-wins pose stream
+                        let reliable = in_countdown
+                            || matches!(
+                                snapshot.round_state.as_str(),
+                                "countdown" | "round_end" | "match_end"
+                            )
+                            || snapshot.tick < 30;
                         if let Ok(bytes) = serde_json::to_vec(&snapshot) {
                             if let Ok(mut out) = shared_state.outbound.lock() {
-                                // Unreliable-ish latest state: mark reliable=false for fresher pose
-                                out.push((CHANNEL_STATE, bytes, false));
+                                // Coalesce: keep only latest state packet in queue
+                                out.retain(|(ch, _, _)| *ch != CHANNEL_STATE);
+                                out.push((CHANNEL_STATE, bytes, reliable));
                             }
                         }
                     }

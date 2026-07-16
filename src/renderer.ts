@@ -11,6 +11,7 @@ import {
 } from './types';
 import { OBSTACLES, ISLAND_CX, ISLAND_CY, ISLAND_R, ARENA_W, ARENA_H } from './engine';
 import { getSkin, WeaponSkinPalette } from './skins';
+import { getHat, HatDef } from './hats';
 import type { WeaponType } from './weapons';
 import {
   updateCombatFx,
@@ -63,6 +64,9 @@ const CAM_LERP = 8.5;
 let canvas: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
 let nextState: GameState | null = null;
+let prevState: GameState | null = null;
+let nextStateTime = 0;
+let prevStateTime = 0;
 let particles: Particle[] = [];
 let shake = 0;
 let time = 0;
@@ -577,7 +581,13 @@ function drawModelSniper(g: CanvasRenderingContext2D, s: WeaponSkinPalette): voi
 }
 
 export function updateGameState(state: GameState): void {
+  // Keep previous snapshot for remote entity interpolation
+  if (nextState) {
+    prevState = nextState;
+    prevStateTime = nextStateTime;
+  }
   nextState = state;
+  nextStateTime = performance.now();
 }
 
 export function setParticles(p: Particle[]): void {
@@ -629,12 +639,66 @@ function updateCamera(dt: number, state: GameState): void {
   camZoom += (tz - camZoom) * k;
 }
 
+/** Interpolate remote entities between last two snapshots for smoother online play. */
+function interpolatedState(): GameState {
+  const cur = nextState!;
+  if (!prevState || nextStateTime <= prevStateTime) return cur;
+  // Render slightly behind latest packet so we always have a segment to lerp
+  const delayMs = 50;
+  const now = performance.now() - delayMs;
+  const span = Math.max(1, nextStateTime - prevStateTime);
+  let t = (now - prevStateTime) / span;
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+  // Local player is already predicted in main.ts — snap to next for them.
+  // Remotes + projectiles/grenades lerp.
+  const players = cur.players.map((p) => {
+    const prev = prevState!.players.find((q) => q.id === p.id);
+    if (!prev || (followPlayerId !== null && p.id === followPlayerId)) return p;
+    return {
+      ...p,
+      x: prev.x + (p.x - prev.x) * t,
+      y: prev.y + (p.y - prev.y) * t,
+      aim_angle: p.aim_angle, // aim snaps (short angular blend not worth complexity)
+    };
+  });
+  // Projectiles: match by approximate position index (no stable id) — lerp if counts match
+  let projectiles = cur.projectiles;
+  if (prevState.projectiles.length === cur.projectiles.length && cur.projectiles.length > 0) {
+    projectiles = cur.projectiles.map((pr, i) => {
+      const pv = prevState!.projectiles[i];
+      if (!pv) return pr;
+      return {
+        ...pr,
+        x: pv.x + (pr.x - pv.x) * t,
+        y: pv.y + (pr.y - pv.y) * t,
+      };
+    });
+  }
+  let grenades = cur.grenades ?? [];
+  const prevG = prevState.grenades ?? [];
+  if (prevG.length === grenades.length && grenades.length > 0) {
+    grenades = grenades.map((g, i) => {
+      const pv = prevG[i];
+      if (!pv) return g;
+      return {
+        ...g,
+        x: pv.x + (g.x - pv.x) * t,
+        y: pv.y + (g.y - pv.y) * t,
+        z: pv.z + (g.z - pv.z) * t,
+      };
+    });
+  }
+  return { ...cur, players, projectiles, grenades };
+}
+
 export function render(deltaTime: number): void {
   if (!ctx || !nextState) return;
   time += deltaTime;
   updateCombatFx(deltaTime);
   tickScreenShake(deltaTime);
-  updateCamera(deltaTime, nextState);
+  const drawState = interpolatedState();
+  updateCamera(deltaTime, drawState);
 
   ctx.fillStyle = C.void;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
@@ -663,12 +727,12 @@ export function render(deltaTime: number): void {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  drawZone(nextState);
+  drawZone(drawState);
   if (propCanvas) ctx.drawImage(propCanvas, 0, 0);
-  drawPickups(nextState.pickups);
-  drawGrenades(nextState.grenades ?? []);
-  drawProjectiles(nextState.projectiles);
-  for (const player of nextState.players) drawPlayer(player);
+  drawPickups(drawState.pickups);
+  drawGrenades(drawState.grenades ?? []);
+  drawProjectiles(drawState.projectiles);
+  for (const player of drawState.players) drawPlayer(player);
   drawParticles();
   // Online / event FX layered on top
   const saved = particles;
@@ -891,6 +955,9 @@ function drawPlayer(player: PlayerSnapshot): void {
   ctx.fill();
   ctx.globalAlpha = 1;
 
+  // Cosmetic hat (on top of helmet)
+  drawPlayerHat(cx, cy - size / 2 + 2, getHat(player.hat_id));
+
   // Weapon
   const wType = normalizeWeaponType(player.weapon_type ?? player.current_weapon);
   const skin = getSkin(player.skin_id);
@@ -917,6 +984,218 @@ function drawPlayer(player: PlayerSnapshot): void {
   ctx.fillText(isP1 ? 'P1' : 'P2', cx + 0.5, by - 3);
   ctx.fillStyle = lite;
   ctx.fillText(isP1 ? 'P1' : 'P2', cx, by - 3.5);
+}
+
+/** Draw a hat above the player body. Anchor = top-center of helmet. */
+function drawPlayerHat(cx: number, topY: number, hat: HatDef): void {
+  if (hat.style === 'none') return;
+  const y = topY - 1;
+  ctx.save();
+  if (hat.glow) {
+    ctx.shadowColor = hat.glow;
+    ctx.shadowBlur = 6;
+  }
+
+  switch (hat.style) {
+    case 'cap': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 1, 8.5, 4.2, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.beginPath();
+      ctx.ellipse(cx + 5, y + 2.5, 5.5, 1.6, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'beanie': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 1, 8, 5.5, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.fillRect(cx - 8, y + 1, 16, 2.5);
+      // pom-pom
+      ctx.fillStyle = hat.accent;
+      ctx.beginPath();
+      ctx.arc(cx, y - 4.5, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'bandana': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.moveTo(cx - 9, y + 3);
+      ctx.lineTo(cx, y - 2);
+      ctx.lineTo(cx + 9, y + 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = hat.accent;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx + 7, y + 2);
+      ctx.lineTo(cx + 12, y + 6);
+      ctx.lineTo(cx + 9, y + 8);
+      ctx.stroke();
+      break;
+    }
+    case 'hardhat': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 1, 9, 5, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.fillRect(cx - 1.2, y - 4, 2.4, 4);
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 3.5, 10, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'tactical': {
+      ctx.fillStyle = hat.color;
+      ctx.fillRect(cx - 9, y - 1, 18, 5);
+      ctx.fillStyle = hat.accent;
+      ctx.fillRect(cx - 10, y + 3.5, 20, 2);
+      // night-vision goggles
+      ctx.fillStyle = '#1a2820';
+      ctx.beginPath();
+      ctx.arc(cx - 3, y + 2, 2.4, 0, Math.PI * 2);
+      ctx.arc(cx + 3, y + 2, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#40c060';
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.arc(cx - 3, y + 2, 1.2, 0, Math.PI * 2);
+      ctx.arc(cx + 3, y + 2, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'cowboy': {
+      ctx.fillStyle = hat.accent;
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 4, 12, 2.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.ellipse(cx, y, 7, 5, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.fillRect(cx - 7, y + 0.5, 14, 1.5);
+      break;
+    }
+    case 'horn': {
+      // helmet dome
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 1, 8, 4.5, 0, Math.PI, 0);
+      ctx.fill();
+      // horns
+      ctx.strokeStyle = hat.accent;
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - 6, y);
+      ctx.quadraticCurveTo(cx - 11, y - 8, cx - 8, y - 11);
+      ctx.moveTo(cx + 6, y);
+      ctx.quadraticCurveTo(cx + 11, y - 8, cx + 8, y - 11);
+      ctx.stroke();
+      break;
+    }
+    case 'ninja': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.ellipse(cx, y + 2, 9, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // headband tails
+      ctx.strokeStyle = hat.accent;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(cx + 7, y + 1);
+      ctx.lineTo(cx + 14, y - 2);
+      ctx.moveTo(cx + 7, y + 3);
+      ctx.lineTo(cx + 13, y + 6);
+      ctx.stroke();
+      break;
+    }
+    case 'crown': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, y + 3);
+      ctx.lineTo(cx - 7, y - 4);
+      ctx.lineTo(cx - 3, y + 1);
+      ctx.lineTo(cx, y - 6);
+      ctx.lineTo(cx + 3, y + 1);
+      ctx.lineTo(cx + 7, y - 4);
+      ctx.lineTo(cx + 8, y + 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.beginPath();
+      ctx.arc(cx, y - 5, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'halo': {
+      ctx.strokeStyle = hat.accent;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.ellipse(cx, y - 5, 7, 2.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = hat.color;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.ellipse(cx, y - 5, 7, 2.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'horns_devil': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, y + 2);
+      ctx.lineTo(cx - 9, y - 8);
+      ctx.lineTo(cx - 2, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + 5, y + 2);
+      ctx.lineTo(cx + 9, y - 8);
+      ctx.lineTo(cx + 2, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.beginPath();
+      ctx.arc(cx - 8.5, y - 7.5, 1.3, 0, Math.PI * 2);
+      ctx.arc(cx + 8.5, y - 7.5, 1.3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'gold_crown': {
+      ctx.fillStyle = hat.color;
+      ctx.beginPath();
+      ctx.moveTo(cx - 9, y + 3);
+      ctx.lineTo(cx - 8, y - 5);
+      ctx.lineTo(cx - 4, y);
+      ctx.lineTo(cx, y - 8);
+      ctx.lineTo(cx + 4, y);
+      ctx.lineTo(cx + 8, y - 5);
+      ctx.lineTo(cx + 9, y + 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = hat.accent;
+      ctx.beginPath();
+      ctx.arc(cx, y - 7, 1.6, 0, Math.PI * 2);
+      ctx.arc(cx - 6, y - 3, 1.1, 0, Math.PI * 2);
+      ctx.arc(cx + 6, y - 3, 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    default:
+      break;
+  }
+  ctx.restore();
 }
 
 function drawGrenades(grenades: GrenadeSnapshot[]): void {

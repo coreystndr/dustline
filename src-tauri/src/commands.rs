@@ -86,8 +86,16 @@ pub fn send_input(
     if steam_ready && !is_host {
         if let Ok(bytes) = serde_json::to_vec(&input) {
             if let Ok(mut out) = state.outbound.lock() {
-                // Reliable so dash/reload/switch edges aren't dropped
-                out.push((CHANNEL_INPUT, bytes, true));
+                // Continuous move/aim/shoot: unreliable (latest wins, no HOL blocking).
+                // One-shot actions: reliable so dash/reload/switch/grenade aren't lost.
+                let reliable =
+                    input.dash || input.reload || input.weapon_switch || input.grenade;
+                // Coalesce pending input packets — keep only latest continuous sample
+                // but never drop a packet that carries an action edge.
+                if !reliable {
+                    out.retain(|(ch, _, rel)| *ch != CHANNEL_INPUT || *rel);
+                }
+                out.push((CHANNEL_INPUT, bytes, reliable));
             }
         }
     } else {
@@ -103,7 +111,9 @@ pub fn set_loadout(
     state: State<'_, Arc<SharedGameState>>,
     primary: String,
     skin: String,
+    hat: Option<String>,
 ) -> Result<String, String> {
+    let hat = hat.unwrap_or_else(|| "none".into());
     let wt = crate::game::weapons::WeaponType::from_str_loose(&primary);
     {
         let mut net = lock_net(&state)?;
@@ -113,12 +123,17 @@ pub fn set_loadout(
         } else {
             skin.clone()
         };
+        net.local_hat = if hat.is_empty() {
+            "none".into()
+        } else {
+            hat.clone()
+        };
         let pid = net.local_player_id;
         let is_host = net.is_host;
         drop(net);
         let mut game = lock_game(&state)?;
         if game.players.iter().any(|p| p.id == pid) {
-            game.set_player_loadout(pid, wt, &skin);
+            game.set_player_loadout(pid, wt, &skin, &hat);
         }
         // Host notifies client of host loadout
         if is_host {
@@ -126,6 +141,7 @@ pub fn set_loadout(
                 player_id: 0,
                 primary: primary.clone(),
                 skin: skin.clone(),
+                hat: hat.clone(),
             }) {
                 if let Ok(mut out) = state.outbound.lock() {
                     out.push((CHANNEL_EVENTS, bytes, true));
@@ -169,7 +185,14 @@ pub fn start_match(state: State<'_, Arc<SharedGameState>>) -> Result<String, Str
     if game.has_enough_players() {
         game.start_countdown();
         if steam_ready && is_host {
-            if let Ok(bytes) = serde_json::to_vec(&NetworkEvent::GameStart) {
+            let snap = GameStateSnapshot::from_state(&game);
+            let state_val = serde_json::to_value(&snap).ok();
+            if let Ok(bytes) = serde_json::to_vec(&NetworkEvent::GameStart {
+                countdown_timer: game.countdown_timer,
+                current_round: game.current_round,
+                score: game.score,
+                state: state_val,
+            }) {
                 if let Ok(mut out) = state.outbound.lock() {
                     out.push((CHANNEL_EVENTS, bytes, true));
                 }
@@ -308,6 +331,7 @@ pub struct PlayerSnapshot {
     pub current_weapon: String,
     pub weapon_type: String,
     pub skin_id: String,
+    pub hat_id: String,
     pub ammo_display: String,
     pub is_alive: bool,
     pub dash_cooldown: f64,
@@ -377,6 +401,7 @@ impl GameStateSnapshot {
                     current_weapon: p.current_weapon().name.clone(),
                     weapon_type: p.current_weapon().weapon_type.as_key().to_string(),
                     skin_id: p.skin_id.clone(),
+                    hat_id: p.hat_id.clone(),
                     ammo_display: p.current_weapon().ammo_display(),
                     is_alive: p.is_alive,
                     dash_cooldown: p.dash_cooldown,

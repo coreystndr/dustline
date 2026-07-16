@@ -817,6 +817,87 @@
       box-shadow: 0 0 0 1px rgba(47, 127, 212, 0.35);
     }
 
+    .hat-picker {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    .skin-swatch.locked {
+      opacity: 0.62;
+      border-style: dashed;
+    }
+    .skin-swatch.locked:hover {
+      border-color: rgba(224, 160, 32, 0.45);
+      opacity: 0.85;
+    }
+    .skin-swatch .lock-dot {
+      background: #2a2a28 !important;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+      position: relative;
+    }
+    .skin-swatch .lock-dot::after {
+      content: '🔒';
+      font-size: 7px;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .hat-cost {
+      font-size: 8px;
+      color: #e0a020;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .dust-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(224, 160, 32, 0.35);
+      background: rgba(224, 160, 32, 0.08);
+      color: #e8c850;
+      font: 700 11px/1 var(--font);
+      letter-spacing: 0.06em;
+    }
+    .dust-chip .dust-amt {
+      color: var(--paper);
+      font-variant-numeric: tabular-nums;
+    }
+    .loadout-header-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      width: min(720px, 100%);
+      margin-bottom: 4px;
+    }
+    .loadout-header-row .section-title { margin-bottom: 0; }
+    .loadout-toast {
+      position: absolute;
+      left: 50%;
+      bottom: 18%;
+      transform: translateX(-50%) translateY(8px);
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: rgba(12, 16, 18, 0.92);
+      border: 1px solid rgba(224, 160, 32, 0.4);
+      color: var(--paper);
+      font: 600 12px/1.2 var(--font);
+      letter-spacing: 0.04em;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s, transform 0.18s;
+      z-index: 5;
+    }
+    .loadout-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     .loadout-note {
       margin-top: 14px;
       font-size: 11px;
@@ -1693,8 +1774,16 @@
       <div class="screen-bg"></div>
       <div class="screen-frame"></div>
       <div class="screen-content">
-        <div class="section-title">Before the fight <strong>Loadout</strong></div>
-        <p class="section-sub">Choose a primary and a finish. Pistol stays secondary.</p>
+        <div class="loadout-header-row">
+          <div>
+            <div class="section-title">Before the fight <strong>Loadout</strong></div>
+            <p class="section-sub">Primary, weapon finish, and unlockable hats. Earn Dust by winning.</p>
+          </div>
+          <div class="dust-chip" title="Earn Dust by winning rounds and matches">
+            <span>DUST</span>
+            <span class="dust-amt" id="dustBalance">0</span>
+          </div>
+        </div>
         <div class="loadout-columns" id="loadoutColumns">
           <div class="loadout-col" id="loadoutP1">
             <div class="loadout-col-head">
@@ -1703,6 +1792,7 @@
             </div>
             <div class="weapon-cards" data-player="0"></div>
             <div class="skin-picker" data-player="0"></div>
+            <div class="hat-picker" data-player="0"></div>
           </div>
           <div class="loadout-col" id="loadoutP2">
             <div class="loadout-col-head">
@@ -1711,13 +1801,15 @@
             </div>
             <div class="weapon-cards" data-player="1"></div>
             <div class="skin-picker" data-player="1"></div>
+            <div class="hat-picker" data-player="1"></div>
           </div>
         </div>
-        <p class="loadout-note">Q / RShift switch · R reload · Shift / M dash · Skins apply to all weapons</p>
+        <p class="loadout-note">Q / RShift switch · R reload · Shift / M dash · Locked hats cost Dust · Free: None + Cap</p>
         <div class="loadout-actions">
           <button class="menu-btn primary" id="btnStartLoadout">Start Duel</button>
           <button class="menu-btn ghost" id="btnLoadoutBack">Back</button>
         </div>
+        <div class="loadout-toast" id="loadoutToast" role="status"></div>
       </div>
     </div>
 

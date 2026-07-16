@@ -10,6 +10,17 @@ import {
   rarityColor,
   getSkin,
 } from './skins';
+import {
+  HAT_LIST,
+  HatId,
+  loadStoredHats,
+  saveStoredHats,
+  loadOwnedHats,
+  isHatOwned,
+  unlockHat,
+  getDust,
+  hatRarityColor,
+} from './hats';
 import { drawWeaponModel } from './renderer';
 
 const screens: Partial<Record<ScreenId, HTMLElement>> = {};
@@ -17,6 +28,8 @@ let activeScreen: ScreenId = 'start';
 
 let selectedLoadouts: [WeaponType, WeaponType] = ['AR', 'SMG'];
 let selectedSkins: [SkinId, SkinId] = loadStoredSkins();
+let selectedHats: [HatId, HatId] = loadStoredHats();
+let ownedHats = loadOwnedHats();
 let loadoutMode: 'local' | 'online' | 'bot' = 'local';
 
 const WEAPON_META: Record<
@@ -49,11 +62,13 @@ export function initUI(): void {
   });
   bind('btnStartLoadout', () => {
     saveStoredSkins(selectedSkins[0], selectedSkins[1]);
+    saveStoredHats(selectedHats[0], selectedHats[1]);
     window.dispatchEvent(
       new CustomEvent('ui:startWithLoadout', {
         detail: {
           loadouts: selectedLoadouts,
           skins: selectedSkins,
+          hats: selectedHats,
           mode: loadoutMode,
         },
       })
@@ -105,13 +120,22 @@ export function initUI(): void {
 
   buildLoadoutCards();
   buildSkinPickers();
+  buildHatPickers();
+  refreshDustBalance();
 }
 
 function showLoadout(bothPlayers: boolean): void {
   const p2 = document.getElementById('loadoutP2');
   if (p2) p2.style.display = bothPlayers ? '' : 'none';
+  ownedHats = loadOwnedHats();
+  // Drop unequippable hats if progress was wiped
+  for (let i = 0; i < 2; i++) {
+    if (!isHatOwned(selectedHats[i], ownedHats)) selectedHats[i] = 'none';
+  }
+  buildHatPickers();
   switchScreen('loadout');
   refreshLoadoutSelection();
+  refreshDustBalance();
 }
 
 function buildLoadoutCards(): void {
@@ -146,7 +170,7 @@ function buildSkinPickers(): void {
     container.innerHTML = '';
     const label = document.createElement('div');
     label.className = 'skin-picker-label';
-    label.textContent = 'SKIN';
+    label.textContent = 'WEAPON SKIN';
     container.appendChild(label);
 
     const row = document.createElement('div');
@@ -170,6 +194,71 @@ function buildSkinPickers(): void {
     container.appendChild(row);
   });
   refreshLoadoutSelection();
+}
+
+function buildHatPickers(): void {
+  ownedHats = loadOwnedHats();
+  document.querySelectorAll('.hat-picker').forEach((container) => {
+    const player = Number((container as HTMLElement).dataset.player ?? 0) as 0 | 1;
+    container.innerHTML = '';
+    const label = document.createElement('div');
+    label.className = 'skin-picker-label';
+    label.textContent = 'HAT';
+    container.appendChild(label);
+
+    const row = document.createElement('div');
+    row.className = 'skin-swatches hat-swatches';
+    for (const hat of HAT_LIST) {
+      const owned = isHatOwned(hat.id, ownedHats);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'skin-swatch hat-swatch' + (owned ? '' : ' locked');
+      btn.dataset.hat = hat.id;
+      btn.style.setProperty('--swatch', hat.color === 'transparent' ? '#3a3a38' : hat.color);
+      btn.style.setProperty('--rarity', hatRarityColor(hat.rarity));
+      if (owned) {
+        btn.title = `${hat.name} (${hat.rarity})`;
+        btn.innerHTML = `<span class="skin-dot"></span><span class="skin-name">${hat.name}</span>`;
+        btn.addEventListener('click', () => {
+          selectedHats[player] = hat.id;
+          saveStoredHats(selectedHats[0], selectedHats[1]);
+          refreshLoadoutSelection();
+        });
+      } else {
+        btn.title = `Unlock ${hat.name} — ${hat.cost} Dust`;
+        btn.innerHTML = `<span class="skin-dot lock-dot"></span><span class="skin-name">${hat.name}</span><span class="hat-cost">${hat.cost}</span>`;
+        btn.addEventListener('click', () => {
+          const result = unlockHat(hat.id);
+          refreshDustBalance();
+          if (result.ok) {
+            ownedHats = loadOwnedHats();
+            selectedHats[player] = hat.id;
+            saveStoredHats(selectedHats[0], selectedHats[1]);
+            buildHatPickers();
+            refreshLoadoutSelection();
+            flashUnlockToast(`Unlocked ${hat.name}`);
+          } else {
+            flashUnlockToast(result.reason ?? 'Not enough Dust');
+          }
+        });
+      }
+      row.appendChild(btn);
+    }
+    container.appendChild(row);
+  });
+}
+
+function refreshDustBalance(): void {
+  const el = document.getElementById('dustBalance');
+  if (el) el.textContent = String(getDust());
+}
+
+function flashUnlockToast(msg: string): void {
+  const el = document.getElementById('loadoutToast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  window.setTimeout(() => el.classList.remove('show'), 1800);
 }
 
 function paintWeaponPreviews(): void {
@@ -206,6 +295,13 @@ function refreshLoadoutSelection(): void {
       el.classList.toggle('selected', el.dataset.skin === selectedSkins[player]);
     });
   });
+  document.querySelectorAll('.hat-picker').forEach((container) => {
+    const player = Number((container as HTMLElement).dataset.player ?? 0) as 0 | 1;
+    container.querySelectorAll('.hat-swatch').forEach((node) => {
+      const el = node as HTMLElement;
+      el.classList.toggle('selected', el.dataset.hat === selectedHats[player]);
+    });
+  });
   paintWeaponPreviews();
 }
 
@@ -215,6 +311,15 @@ export function getSelectedLoadouts(): [WeaponType, WeaponType] {
 
 export function getSelectedSkins(): [SkinId, SkinId] {
   return [...selectedSkins] as [SkinId, SkinId];
+}
+
+export function getSelectedHats(): [HatId, HatId] {
+  return [...selectedHats] as [HatId, HatId];
+}
+
+/** Call after match end to refresh dust UI if loadout is open later. */
+export function notifyDustChanged(): void {
+  refreshDustBalance();
 }
 
 function bind(id: string, fn: () => void): void {
@@ -230,7 +335,10 @@ function setText(id: string, text: string): void {
 export function switchScreen(screen: ScreenId): void {
   Object.values(screens).forEach((s) => s?.classList.remove('active'));
   document.getElementById('hud')!.classList.remove('active');
-  document.getElementById('countdownOverlay')!.classList.remove('active');
+  // Don't clear countdown when entering game — P2 may have just been seeded
+  if (screen !== 'game') {
+    document.getElementById('countdownOverlay')!.classList.remove('active');
+  }
   document.getElementById('endOverlay')!.classList.remove('active');
   document.getElementById('pauseOverlay')!.classList.remove('active');
 

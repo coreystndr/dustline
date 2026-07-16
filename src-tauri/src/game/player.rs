@@ -57,6 +57,7 @@ pub struct Player {
     pub invuln: f64,
     pub primary_loadout: WeaponType,
     pub skin_id: String,
+    pub hat_id: String,
     pub grenades: u32,
     pub grenade_cooldown: f64,
 }
@@ -88,6 +89,7 @@ impl Player {
             invuln: 0.0,
             primary_loadout: WeaponType::AR,
             skin_id: "default".into(),
+            hat_id: "none".into(),
             grenades: GRENADE_START,
             grenade_cooldown: 0.0,
         };
@@ -103,10 +105,13 @@ impl Player {
         self.current_weapon_index = 1;
     }
 
-    pub fn set_loadout(&mut self, primary: WeaponType, skin: &str) {
+    pub fn set_loadout(&mut self, primary: WeaponType, skin: &str, hat: &str) {
         self.primary_loadout = primary;
         if !skin.is_empty() {
             self.skin_id = skin.to_string();
+        }
+        if !hat.is_empty() {
+            self.hat_id = hat.to_string();
         }
         self.apply_loadout();
     }

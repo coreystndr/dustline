@@ -177,9 +177,9 @@ impl GameState {
         }
     }
 
-    pub fn set_player_loadout(&mut self, player_id: u8, primary: WeaponType, skin: &str) {
+    pub fn set_player_loadout(&mut self, player_id: u8, primary: WeaponType, skin: &str, hat: &str) {
         if let Some(p) = self.players.iter_mut().find(|p| p.id == player_id) {
-            p.set_loadout(primary, skin);
+            p.set_loadout(primary, skin, hat);
         }
     }
 

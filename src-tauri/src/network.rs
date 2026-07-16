@@ -28,10 +28,37 @@ pub struct ClientInput {
     pub grenade: bool,
 }
 
+impl ClientInput {
+    /// Merge later input on top of earlier; preserve one-shot action edges.
+    pub fn coalesce_with(&mut self, later: &ClientInput) {
+        self.tick = later.tick.max(self.tick);
+        self.move_x = later.move_x;
+        self.move_y = later.move_y;
+        self.aim_angle = later.aim_angle;
+        self.shooting = later.shooting;
+        // Edges: keep true if either sample had it (host edge-detects vs prev frame)
+        self.weapon_switch = self.weapon_switch || later.weapon_switch;
+        self.reload = self.reload || later.reload;
+        self.dash = self.dash || later.dash;
+        self.grenade = self.grenade || later.grenade;
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum NetworkEvent {
-    GameStart,
+    /// Host → client: start match with seed state so P2 sees countdown immediately.
+    GameStart {
+        #[serde(default = "default_countdown")]
+        countdown_timer: f64,
+        #[serde(default = "default_round")]
+        current_round: u32,
+        #[serde(default)]
+        score: [u32; 2],
+        /// Full state snapshot as JSON value (avoids circular types)
+        #[serde(default)]
+        state: Option<serde_json::Value>,
+    },
     RoundStart { round: u32 },
     RoundEnd { winner_id: u8, score: [u32; 2] },
     MatchEnd { winner_id: u8, final_score: [u32; 2] },
@@ -42,7 +69,11 @@ pub enum NetworkEvent {
         primary: String,
         #[serde(default)]
         skin: String,
+        #[serde(default)]
+        hat: String,
     },
+    /// Client acks match start so host can stop retransmitting GameStart.
+    GameStartAck,
     /// Host → client combat / SFX events (same shape as SoundEvent)
     Combat {
         event: SoundEvent,
@@ -51,7 +82,16 @@ pub enum NetworkEvent {
         player_id: u8,
         primary: String,
         skin: String,
+        #[serde(default)]
+        hat: String,
     },
+}
+
+fn default_countdown() -> f64 {
+    3.0
+}
+fn default_round() -> u32 {
+    1
 }
 
 pub struct NetworkManager {
@@ -68,11 +108,23 @@ pub struct NetworkManager {
     pub status: String,
     /// Last accepted input tick per player (drop stale)
     pub last_input_tick: [u64; 2],
+    /// Sticky last input — re-applied when no new packet this tick
+    pub held_input: [Option<ClientInput>; 2],
     /// Pending loadout from peer before spawn
     pub peer_primary: String,
     pub peer_skin: String,
+    pub peer_hat: String,
     pub local_primary: String,
     pub local_skin: String,
+    pub local_hat: String,
+    /// Host received Hello from peer (loadout handshake)
+    pub peer_hello: bool,
+    /// Client acked GameStart
+    pub peer_start_ack: bool,
+    /// When host first sent GameStart (for retry)
+    pub game_start_sent_ms: u64,
+    /// When lobby first hit 2 members (host readiness delay)
+    pub two_player_since_ms: u64,
 }
 
 impl NetworkManager {
@@ -88,11 +140,28 @@ impl NetworkManager {
             match_started: false,
             status: "Steam not initialized".into(),
             last_input_tick: [0, 0],
+            held_input: [None, None],
             peer_primary: "AR".into(),
             peer_skin: "default".into(),
+            peer_hat: "none".into(),
             local_primary: "AR".into(),
             local_skin: "default".into(),
+            local_hat: "none".into(),
+            peer_hello: false,
+            peer_start_ack: false,
+            game_start_sent_ms: 0,
+            two_player_since_ms: 0,
         }
+    }
+
+    pub fn reset_match_flags(&mut self) {
+        self.match_started = false;
+        self.peer_hello = false;
+        self.peer_start_ack = false;
+        self.game_start_sent_ms = 0;
+        self.two_player_since_ms = 0;
+        self.held_input = [None, None];
+        self.last_input_tick = [0, 0];
     }
 }
 

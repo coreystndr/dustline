@@ -2,15 +2,16 @@
 //! When two players search, they share a lobby and the match auto-starts.
 //!
 //! Design notes:
-//! - Search longer before create (Steam lobby list indexes slowly).
-//! - Canonical lobby = highest Steam lobby id among solo waiting lobbies (deterministic merge).
-//! - Solo players periodically re-list and merge into the canonical lobby.
-//! - Only one create at a time (`creating` flag).
+//! - Lower SteamID creates earlier; higher IDs search longer then may create.
+//! - Create runs as soon as create_gate elapses (not after a fixed attempt count).
+//! - Solo merge: prefer lower owner; after STUCK_MS join ANY other solo lobby.
+//! - Only one create at a time (`creating` flag); list ops under `mm_lock`.
 //! - Relay network access enabled so P2P works across NAT.
+//! - In-match network pump is 1ms; matchmaking poll stays slower.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use steamworks::networking_types::{NetworkingIdentity, SendFlags};
@@ -27,9 +28,22 @@ use crate::network::{
 
 const CHANNEL_COUNT: u32 = 4;
 /// How often a solo player re-scans for other waiting lobbies.
-const RESCAN_MS: u64 = 1200;
-/// Pre-create search passes (with backoff).
-const SEARCH_ATTEMPTS: u32 = 16;
+const RESCAN_MS: u64 = 900;
+/// After this solo time, join ANY other DUSTLINE solo lobby (heal asymmetric splits).
+const STUCK_MERGE_MS: u64 = 3500;
+/// Max time to search before hard create (even high steam ids).
+const HARD_CREATE_MS: u64 = 18_000;
+/// Host waits for Hello this long after 2 members, then starts anyway.
+const HELLO_WAIT_MS: u64 = 1500;
+/// Retransmit GameStart while countdown if no ack.
+const GAME_START_RETRY_MS: u64 = 400;
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 pub struct SteamRuntime {
     pub client: Client,
@@ -99,12 +113,12 @@ impl SteamRuntime {
                 self.mm().leave_lobby(LobbyId::from_raw(id));
             }
             net.searching = false;
-            net.match_started = false;
             net.remote_steam_id = None;
             net.connected = false;
             net.is_host = false;
             net.local_player_id = 0;
             net.status = "Left matchmaking".into();
+            net.reset_match_flags();
         }
     }
 
@@ -133,10 +147,10 @@ impl SteamRuntime {
         let steam = Arc::clone(self);
         let shared2 = Arc::clone(&shared);
         std::thread::spawn(move || {
-            // Lower Steam-IDs create earlier; higher IDs search longer so they join the first lobby.
-            // Relative ordering works for any pair of accounts without prior coordination.
+            // Spread create times so simultaneous queues don't dual-create.
+            // Merge (stuck timer + owner order) heals remaining splits.
             let sid = steam.steam_id();
-            let create_gate_ms = 1500 + (sid % 7) * 1200; // 1.5s … ~9.9s unique-ish
+            let create_gate_ms = 2200 + (sid % 13) * 650; // ~2.2s … ~10s
             if let Err(e) = steam.run_find_match(shared2, gen, create_gate_ms) {
                 eprintln!("matchmaking error: {e}");
             }
@@ -155,17 +169,30 @@ impl SteamRuntime {
         create_gate_ms: u64,
     ) -> Result<(), String> {
         let started = Instant::now();
+        let mut attempt: u32 = 0;
 
-        // Longer search window — Steam indexes lobby metadata slowly.
-        for attempt in 1..=SEARCH_ATTEMPTS {
+        // Search until we join OR create_gate elapses (then create immediately).
+        loop {
             if self.search_gen.load(Ordering::SeqCst) != gen {
                 return Ok(());
             }
+            // Already in a lobby (merge / ensure_queue may have filled it)
+            if shared
+                .network_manager
+                .lock()
+                .map(|n| n.lobby_id.is_some())
+                .unwrap_or(false)
+            {
+                return Ok(());
+            }
+
+            attempt += 1;
+            let elapsed = started.elapsed().as_millis() as u64;
             Self::set_status(
                 &shared,
                 format!(
-                    "Searching… ({attempt}/{SEARCH_ATTEMPTS}) · create after {}s",
-                    create_gate_ms / 1000
+                    "Searching… #{attempt} · create in {}s",
+                    create_gate_ms.saturating_sub(elapsed) / 1000
                 ),
             );
 
@@ -183,52 +210,44 @@ impl SteamRuntime {
                 }
             }
 
-            // Don't create until create_gate elapsed — gives the other player time to host.
             let elapsed = started.elapsed().as_millis() as u64;
-            if elapsed < create_gate_ms {
-                let wait = (create_gate_ms - elapsed).min(900).max(250);
-                std::thread::sleep(Duration::from_millis(wait));
-                continue;
-            }
 
-            let sleep_ms = 500 + (attempt as u64).saturating_mul(200).min(2000);
-            std::thread::sleep(Duration::from_millis(sleep_ms));
-        }
-
-        if self.search_gen.load(Ordering::SeqCst) != gen {
-            return Ok(());
-        }
-
-        // One last list before create
-        if let Ok(Some(msg)) = self.try_join_best_open_lobby(Arc::clone(&shared), None) {
-            if self.search_gen.load(Ordering::SeqCst) == gen {
-                Self::set_status(&shared, msg);
-            }
-            return Ok(());
-        }
-
-        // Wait out create gate fully
-        let elapsed = started.elapsed().as_millis() as u64;
-        if elapsed < create_gate_ms {
-            std::thread::sleep(Duration::from_millis(create_gate_ms - elapsed));
-            if let Ok(Some(msg)) = self.try_join_best_open_lobby(Arc::clone(&shared), None) {
+            // Create as soon as gate elapses (this was the dual-create race fix).
+            if elapsed >= create_gate_ms {
+                if self.search_gen.load(Ordering::SeqCst) != gen {
+                    return Ok(());
+                }
+                // One last join before create
+                if let Ok(Some(msg)) = self.try_join_best_open_lobby(Arc::clone(&shared), None) {
+                    if self.search_gen.load(Ordering::SeqCst) == gen {
+                        Self::set_status(&shared, msg);
+                    }
+                    return Ok(());
+                }
+                Self::set_status(&shared, "No lobby found — creating public queue…");
+                let msg = self.create_waiting_lobby(Arc::clone(&shared))?;
                 if self.search_gen.load(Ordering::SeqCst) == gen {
                     Self::set_status(&shared, msg);
                 }
                 return Ok(());
             }
-        }
 
-        if self.search_gen.load(Ordering::SeqCst) != gen {
-            return Ok(());
-        }
+            // Hard timeout: create no matter what
+            if elapsed >= HARD_CREATE_MS {
+                if self.search_gen.load(Ordering::SeqCst) != gen {
+                    return Ok(());
+                }
+                Self::set_status(&shared, "Timeout — creating public queue…");
+                let msg = self.create_waiting_lobby(Arc::clone(&shared))?;
+                if self.search_gen.load(Ordering::SeqCst) == gen {
+                    Self::set_status(&shared, msg);
+                }
+                return Ok(());
+            }
 
-        Self::set_status(&shared, "No lobby found — creating public queue…");
-        let msg = self.create_waiting_lobby(Arc::clone(&shared))?;
-        if self.search_gen.load(Ordering::SeqCst) == gen {
-            Self::set_status(&shared, msg);
+            let wait = (create_gate_ms - elapsed).min(700).max(200);
+            std::thread::sleep(Duration::from_millis(wait));
         }
-        Ok(())
     }
 
     /// Collect joinable solo waiting lobbies (not owned by us, not full, not playing).
@@ -301,7 +320,7 @@ impl SteamRuntime {
             match self.join_lobby_raw(lobby) {
                 Ok(lobby_id) => {
                     let owner = self.mm().lobby_owner(lobby_id);
-                    let (primary, skin) = {
+                    let (primary, skin, hat) = {
                         let mut net = shared.network_manager.lock().map_err(|e| e.to_string())?;
                         // Cancelled / left queue while join was in flight
                         if !net.searching {
@@ -317,7 +336,11 @@ impl SteamRuntime {
                         net.match_started = false;
                         net.steam_ready = true;
                         net.status = format!("Joined lobby {} — waiting…", lobby_id.raw());
-                        (net.local_primary.clone(), net.local_skin.clone())
+                        (
+                            net.local_primary.clone(),
+                            net.local_skin.clone(),
+                            net.local_hat.clone(),
+                        )
                     };
                     {
                         let mut game = shared.game_state.lock().map_err(|e| e.to_string())?;
@@ -325,7 +348,7 @@ impl SteamRuntime {
                         game.add_player(0);
                         game.add_player(1);
                         let wt = crate::game::weapons::WeaponType::from_str_loose(&primary);
-                        game.set_player_loadout(1, wt, &skin);
+                        game.set_player_loadout(1, wt, &skin, &hat);
                     }
                     self.send_event(
                         owner,
@@ -333,6 +356,7 @@ impl SteamRuntime {
                             player_id: 1,
                             primary,
                             skin,
+                            hat,
                         },
                     );
                     return Ok(Some(format!(
@@ -664,17 +688,24 @@ impl SteamRuntime {
                         }
                     }
                     if !is_host {
-                        let (primary, skin) = shared
+                        let (primary, skin, hat) = shared
                             .network_manager
                             .lock()
-                            .map(|n| (n.local_primary.clone(), n.local_skin.clone()))
-                            .unwrap_or(("AR".into(), "default".into()));
+                            .map(|n| {
+                                (
+                                    n.local_primary.clone(),
+                                    n.local_skin.clone(),
+                                    n.local_hat.clone(),
+                                )
+                            })
+                            .unwrap_or(("AR".into(), "default".into(), "none".into()));
                         steam.send_event(
                             owner,
                             &NetworkEvent::Hello {
                                 player_id: 1,
                                 primary,
                                 skin,
+                                hat,
                             },
                         );
                     }
@@ -696,20 +727,23 @@ impl SteamRuntime {
     }
 
     /// Poll lobby membership; when 2 players present, auto-start.
-    /// Solo players re-scan and merge into the canonical (highest-id) waiting lobby.
+    /// Solo players re-scan and merge into another waiting lobby.
     pub fn poll_matchmaking(&self, shared: &SharedGameState, app: &AppHandle) {
-        let (lobby_raw, is_host, searching, already) = {
+        let (lobby_raw, is_host, searching, already, peer_ack, start_sent_ms) = {
             let Ok(net) = shared.network_manager.lock() else {
                 return;
             };
             (
                 net.lobby_id,
                 net.is_host,
-                net.searching,
+                net.searching || net.match_started,
                 net.match_started,
+                net.peer_start_ack,
+                net.game_start_sent_ms,
             )
         };
-        // After match start: detect disconnect
+
+        // After match start: disconnect + GameStart retransmit until ack
         if already {
             if let Some(lobby_raw) = lobby_raw {
                 let members = self.mm().lobby_members(LobbyId::from_raw(lobby_raw));
@@ -738,6 +772,24 @@ impl SteamRuntime {
                         "opponent_left",
                         serde_json::json!({ "reason": "lobby_empty" }),
                     );
+                    return;
+                }
+            }
+            // Host: retransmit GameStart while no ack and still in countdown
+            if is_host && !peer_ack {
+                let in_cd = shared
+                    .game_state
+                    .lock()
+                    .map(|g| {
+                        matches!(g.round_state, crate::game::state::RoundState::Countdown)
+                    })
+                    .unwrap_or(false);
+                if in_cd {
+                    let now = now_ms();
+                    if start_sent_ms == 0 || now.saturating_sub(start_sent_ms) >= GAME_START_RETRY_MS
+                    {
+                        self.host_send_game_start(shared, app, false);
+                    }
                 }
             }
             return;
@@ -752,8 +804,11 @@ impl SteamRuntime {
         let lobby = LobbyId::from_raw(lobby_raw);
         let members = self.mm().lobby_members(lobby);
 
-        // Still alone: periodically merge into the canonical open lobby.
+        // Still alone: periodically merge into another open lobby.
         if members.len() < 2 {
+            if let Ok(mut net) = shared.network_manager.lock() {
+                net.two_player_since_ms = 0;
+            }
             self.maybe_merge_solo_queue(shared, lobby_raw, app);
             if let Ok(mut net) = shared.network_manager.lock() {
                 if net.searching && !net.match_started && net.lobby_id == Some(lobby_raw) {
@@ -774,6 +829,58 @@ impl SteamRuntime {
                 }
                 net.status = "Opponent in lobby — waiting for host…".into();
             }
+            // Keep sending Hello so host has loadout + session proof
+            if let Some(r) = remote {
+                let (primary, skin, hat) = shared
+                    .network_manager
+                    .lock()
+                    .map(|n| {
+                        (
+                            n.local_primary.clone(),
+                            n.local_skin.clone(),
+                            n.local_hat.clone(),
+                        )
+                    })
+                    .unwrap_or(("AR".into(), "default".into(), "none".into()));
+                self.send_event(
+                    SteamId::from_raw(r),
+                    &NetworkEvent::Hello {
+                        player_id: 1,
+                        primary,
+                        skin,
+                        hat,
+                    },
+                );
+            }
+            return;
+        }
+
+        // Host readiness: wait for Hello (or HELLO_WAIT_MS) so P2 is ready
+        let (peer_hello, two_since) = {
+            let Ok(mut net) = shared.network_manager.lock() else {
+                return;
+            };
+            if net.match_started {
+                return;
+            }
+            if let Some(r) = remote {
+                net.remote_steam_id = Some(r);
+            }
+            if net.two_player_since_ms == 0 {
+                net.two_player_since_ms = now_ms();
+            }
+            (net.peer_hello, net.two_player_since_ms)
+        };
+
+        let waited = now_ms().saturating_sub(two_since);
+        if !peer_hello && waited < HELLO_WAIT_MS {
+            if let Ok(mut net) = shared.network_manager.lock() {
+                net.status = format!(
+                    "Opponent joined — syncing… ({}ms)",
+                    HELLO_WAIT_MS.saturating_sub(waited)
+                );
+            }
+            let _ = app.emit("steam_status", "Opponent joined — syncing session…");
             return;
         }
 
@@ -793,6 +900,7 @@ impl SteamRuntime {
             net.local_player_id = 0;
             net.is_host = true;
             net.status = "Match found! Starting…".into();
+            net.peer_start_ack = false;
         }
 
         let _ = self.mm().set_lobby_joinable(lobby, false);
@@ -809,32 +917,92 @@ impl SteamRuntime {
             if !game.players.iter().any(|p| p.id == 1) {
                 game.add_player(1);
             }
-            // Apply host + peer loadouts
             if let Ok(net) = shared.network_manager.lock() {
                 let hp = crate::game::weapons::WeaponType::from_str_loose(&net.local_primary);
                 let pp = crate::game::weapons::WeaponType::from_str_loose(&net.peer_primary);
-                game.set_player_loadout(0, hp, &net.local_skin);
-                game.set_player_loadout(1, pp, &net.peer_skin);
+                game.set_player_loadout(0, hp, &net.local_skin, &net.local_hat);
+                game.set_player_loadout(1, pp, &net.peer_skin, &net.peer_hat);
             }
+            // Countdown starts only when host is ready to notify client
             game.start_countdown();
         }
 
-        if let Some(r) = remote {
-            self.send_event(SteamId::from_raw(r), &NetworkEvent::GameStart);
-        }
-
-        let _ = app.emit(
-            "match_found",
-            serde_json::json!({ "player_id": 0, "is_host": true }),
-        );
+        self.host_send_game_start(shared, app, true);
         let _ = app.emit("steam_status", "Match found — you are Player 1 (host)");
     }
 
-    /// Solo queue re-scan: re-tag lobby data + merge into canonical lobby
-    /// (lowest owner steam id, then lowest lobby id).
+    /// Build GameStart + seed snapshot and send to peer (and emit match_found once).
+    fn host_send_game_start(&self, shared: &SharedGameState, app: &AppHandle, first: bool) {
+        let remote = shared
+            .network_manager
+            .lock()
+            .ok()
+            .and_then(|n| n.remote_steam_id);
+        let Some(r) = remote else {
+            return;
+        };
+
+        let (countdown, round, score, state_val) = {
+            let Ok(game) = shared.game_state.lock() else {
+                return;
+            };
+            let snap = crate::commands::GameStateSnapshot::from_state(&game);
+            let state_val = serde_json::to_value(&snap).ok();
+            (
+                game.countdown_timer,
+                game.current_round,
+                game.score,
+                state_val,
+            )
+        };
+
+        self.send_event(
+            SteamId::from_raw(r),
+            &NetworkEvent::GameStart {
+                countdown_timer: countdown,
+                current_round: round,
+                score,
+                state: state_val.clone(),
+            },
+        );
+
+        // Also push a reliable state snapshot on STATE channel
+        if let Some(val) = &state_val {
+            if let Ok(bytes) = serde_json::to_vec(val) {
+                if let Ok(mut out) = shared.outbound.lock() {
+                    out.retain(|(ch, _, _)| *ch != CHANNEL_STATE);
+                    out.push((CHANNEL_STATE, bytes, true));
+                }
+            }
+        }
+
+        if let Ok(mut net) = shared.network_manager.lock() {
+            net.game_start_sent_ms = now_ms();
+        }
+
+        if first {
+            let _ = app.emit(
+                "match_found",
+                serde_json::json!({
+                    "player_id": 0,
+                    "is_host": true,
+                    "countdown_timer": countdown,
+                    "round_state": "countdown",
+                }),
+            );
+            // Host local UI: seed countdown immediately
+            if let Some(val) = state_val {
+                let _ = app.emit("game_state", val);
+            }
+        }
+    }
+
+    /// Solo queue re-scan: re-tag lobby + merge into another waiting lobby.
+    /// Prefer lower owner; after STUCK_MERGE_MS join ANY other solo lobby (heal splits).
     fn maybe_merge_solo_queue(&self, shared: &SharedGameState, our_lobby: u64, app: &AppHandle) {
         thread_local! {
             static LAST: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
+            static SOLO_SINCE: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
         }
         let now = Instant::now();
         let should = LAST.with(|c| {
@@ -851,6 +1019,16 @@ impl SteamRuntime {
             return;
         }
 
+        let solo_ms = SOLO_SINCE.with(|c| {
+            match c.get() {
+                None => {
+                    c.set(Some(now));
+                    0
+                }
+                Some(t) => now.duration_since(t).as_millis() as u64,
+            }
+        });
+
         // Keep lobby discoverable (Steam filter index is eventual).
         self.tag_waiting_lobby(LobbyId::from_raw(our_lobby));
 
@@ -860,32 +1038,29 @@ impl SteamRuntime {
         let me = self.steam_id();
         let others = self.collect_join_candidates(&lobbies, Some(our_lobby), me);
 
-        // Canonical among {our lobby, others}: lowest owner steam id wins host.
-        // If any other lobby's owner is "more canonical" than us, join them.
-        // Sort of others is already (owner asc, lobby asc). First other is best join target
-        // only if that owner < me, OR owner == me (shouldn't), OR we compare lobby ids when
-        // we treat "any other solo lobby" as merge target when their owner < me.
-        //
-        // If their owner steam id < ours → they are host, we must join.
-        // If their owner steam id > ours → we are host, they should join us (we stay).
-        // If equal owner impossible across accounts.
         let Some((target, owner_id)) = others.first().copied() else {
             return;
         };
 
-        if owner_id > me {
-            // We are the lower steam id — stay as host; they should merge to us.
+        // Prefer joining lower-owner (canonical). After stuck timer, join ANY peer.
+        let stuck = solo_ms >= STUCK_MERGE_MS;
+        if owner_id > me && !stuck {
+            // We are lower steam id — stay; they should join us (unless stuck).
             return;
         }
         if owner_id == me {
             return;
         }
 
-        // owner_id < me → join their lobby (they are canonical host)
+        let reason = if owner_id < me {
+            "canonical host"
+        } else {
+            "stuck-merge"
+        };
         let _ = app.emit(
             "steam_status",
             format!(
-                "Merging → joining host lobby {} (owner {owner_id})…",
+                "Merging → lobby {} ({reason}, owner {owner_id})…",
                 target.raw()
             ),
         );
@@ -893,6 +1068,7 @@ impl SteamRuntime {
         self.mm().leave_lobby(LobbyId::from_raw(our_lobby));
         match self.join_lobby_raw(target) {
             Ok(lobby_id) => {
+                SOLO_SINCE.with(|c| c.set(None));
                 let owner = self.mm().lobby_owner(lobby_id);
                 if let Ok(mut net) = shared.network_manager.lock() {
                     net.is_host = false;
@@ -901,7 +1077,7 @@ impl SteamRuntime {
                     net.remote_steam_id = Some(owner.raw());
                     net.connected = true;
                     net.searching = true;
-                    net.match_started = false;
+                    net.reset_match_flags();
                     net.status = format!("Joined lobby {} — waiting…", lobby_id.raw());
                 }
                 if let Ok(mut game) = shared.game_state.lock() {
@@ -909,27 +1085,39 @@ impl SteamRuntime {
                     game.add_player(0);
                     game.add_player(1);
                 }
-                let (primary, skin) = shared
+                let (primary, skin, hat) = shared
                     .network_manager
                     .lock()
-                    .map(|n| (n.local_primary.clone(), n.local_skin.clone()))
-                    .unwrap_or(("AR".into(), "default".into()));
+                    .map(|n| {
+                        (
+                            n.local_primary.clone(),
+                            n.local_skin.clone(),
+                            n.local_hat.clone(),
+                        )
+                    })
+                    .unwrap_or(("AR".into(), "default".into(), "none".into()));
                 self.send_event(
                     owner,
                     &NetworkEvent::Hello {
                         player_id: 1,
                         primary,
                         skin,
+                        hat,
                     },
                 );
             }
             Err(_) => {
+                eprintln!("merge join failed lobby={}", target.raw());
+                // Recover immediately: recreate rather than sit lobby-less for 4s
                 if let Ok(mut net) = shared.network_manager.lock() {
                     net.lobby_id = None;
                     net.is_host = false;
                     net.searching = true;
-                    net.status = "Merge failed — searching again…".into();
+                    net.status = "Merge failed — recreating…".into();
                 }
+                SOLO_SINCE.with(|c| c.set(None));
+                // shared is &SharedGameState — wrap for create (clone Arc pattern via outer)
+                // create_waiting_lobby needs Arc; call via ensure path instead
             }
         }
     }
@@ -1017,12 +1205,19 @@ impl SteamRuntime {
                                 player_id,
                                 primary,
                                 skin,
+                                hat,
                             } => {
                                 if let Ok(mut net) = shared.network_manager.lock() {
                                     net.remote_steam_id = Some(from);
                                     net.connected = true;
                                     net.peer_primary = primary.clone();
                                     net.peer_skin = skin.clone();
+                                    net.peer_hat = if hat.is_empty() {
+                                        "none".into()
+                                    } else {
+                                        hat.clone()
+                                    };
+                                    net.peer_hello = true;
                                     net.status = format!("Opponent connected ({from})");
                                 }
                                 if let Ok(mut game) = shared.game_state.lock() {
@@ -1031,12 +1226,29 @@ impl SteamRuntime {
                                     }
                                     let wt =
                                         crate::game::weapons::WeaponType::from_str_loose(&primary);
-                                    game.set_player_loadout(player_id, wt, &skin);
+                                    let hat_id = if hat.is_empty() { "none" } else { &hat };
+                                    game.set_player_loadout(player_id, wt, &skin, hat_id);
                                 }
                                 let _ = app.emit("steam_status", "Opponent found — preparing…");
                             }
-                            NetworkEvent::GameStart => {
-                                // Client: only start on host GameStart (single authority)
+                            NetworkEvent::GameStartAck => {
+                                if let Ok(mut net) = shared.network_manager.lock() {
+                                    net.peer_start_ack = true;
+                                }
+                            }
+                            NetworkEvent::GameStart {
+                                countdown_timer,
+                                current_round,
+                                score,
+                                state,
+                            } => {
+                                // Client: seed UI immediately from GameStart payload
+                                let already = shared
+                                    .network_manager
+                                    .lock()
+                                    .map(|n| n.match_started)
+                                    .unwrap_or(false);
+
                                 if let Ok(mut game) = shared.game_state.lock() {
                                     if !game.players.iter().any(|p| p.id == 0) {
                                         game.add_player(0);
@@ -1051,11 +1263,30 @@ impl SteamRuntime {
                                         let pp = crate::game::weapons::WeaponType::from_str_loose(
                                             &net.peer_primary,
                                         );
-                                        // On client, local is player 1
-                                        game.set_player_loadout(1, lp, &net.local_skin);
-                                        game.set_player_loadout(0, pp, &net.peer_skin);
+                                        game.set_player_loadout(
+                                            1,
+                                            lp,
+                                            &net.local_skin,
+                                            &net.local_hat,
+                                        );
+                                        game.set_player_loadout(
+                                            0,
+                                            pp,
+                                            &net.peer_skin,
+                                            &net.peer_hat,
+                                        );
                                     }
-                                    // Client does not run countdown sim — host state drives UI
+                                    // Seed local view of countdown (display only; host sims)
+                                    if matches!(
+                                        game.round_state,
+                                        crate::game::state::RoundState::WaitingForPlayers
+                                    ) {
+                                        game.round_state =
+                                            crate::game::state::RoundState::Countdown;
+                                        game.countdown_timer = countdown_timer;
+                                        game.current_round = current_round;
+                                        game.score = score;
+                                    }
                                 }
                                 if let Ok(mut net) = shared.network_manager.lock() {
                                     net.match_started = true;
@@ -1063,12 +1294,54 @@ impl SteamRuntime {
                                     net.local_player_id = 1;
                                     net.is_host = false;
                                     net.remote_steam_id = Some(from);
+                                    net.connected = true;
                                 }
-                                let _ = app.emit(
-                                    "match_found",
-                                    serde_json::json!({ "player_id": 1, "is_host": false }),
-                                );
+
+                                // Emit seed state so UI shows countdown immediately
+                                if let Some(val) = state {
+                                    let _ = app.emit("game_state", val);
+                                } else {
+                                    let _ = app.emit(
+                                        "game_state",
+                                        serde_json::json!({
+                                            "tick": 0,
+                                            "round_state": "countdown",
+                                            "current_round": current_round,
+                                            "max_rounds": 5,
+                                            "score": score,
+                                            "players": [],
+                                            "projectiles": [],
+                                            "grenades": [],
+                                            "pickups": [],
+                                            "countdown_timer": countdown_timer,
+                                            "winner_id": null,
+                                            "zone_x": 640.0,
+                                            "zone_y": 360.0,
+                                            "zone_radius": 380.0,
+                                            "zone_target_radius": 380.0,
+                                            "match_time": 0.0,
+                                        }),
+                                    );
+                                }
+
+                                if !already {
+                                    let _ = app.emit(
+                                        "match_found",
+                                        serde_json::json!({
+                                            "player_id": 1,
+                                            "is_host": false,
+                                            "countdown_timer": countdown_timer,
+                                            "round_state": "countdown",
+                                        }),
+                                    );
+                                }
                                 let _ = app.emit("steam_status", "Match starting");
+
+                                // Ack so host stops retransmitting
+                                self.send_event(
+                                    SteamId::from_raw(from),
+                                    &NetworkEvent::GameStartAck,
+                                );
                             }
                             NetworkEvent::Combat { event } => {
                                 let event_name = match &event {
@@ -1098,11 +1371,13 @@ impl SteamRuntime {
                                 player_id,
                                 primary,
                                 skin,
+                                hat,
                             } => {
                                 if let Ok(mut game) = shared.game_state.lock() {
                                     let wt =
                                         crate::game::weapons::WeaponType::from_str_loose(&primary);
-                                    game.set_player_loadout(player_id, wt, &skin);
+                                    let hat_id = if hat.is_empty() { "none" } else { &hat };
+                                    game.set_player_loadout(player_id, wt, &skin, hat_id);
                                 }
                             }
                             other => {
@@ -1162,7 +1437,8 @@ impl SteamRuntime {
         let go = LAST.with(|c| {
             let go = match c.get() {
                 None => true,
-                Some(t) => now.duration_since(t) >= Duration::from_secs(4),
+                // Faster recovery after failed merge / orphan queue
+                Some(t) => now.duration_since(t) >= Duration::from_millis(1500),
             };
             if go {
                 c.set(Some(now));
@@ -1215,19 +1491,30 @@ pub fn spawn_steam_thread(app: AppHandle, shared: Arc<SharedGameState>, steam: A
             steam.process_inbound(&shared, &app);
             steam.flush_outbound(&shared);
 
-            // Poll matchmaking ~10 Hz
+            let match_live = shared
+                .network_manager
+                .lock()
+                .map(|n| n.match_started && n.remote_steam_id.is_some())
+                .unwrap_or(false);
+
+            // Matchmaking poll: ~10 Hz out of match, ~20 Hz in match (for disconnect/retry)
             tick += 1;
-            if tick % 4 == 0 {
+            let mm_every = if match_live { 8 } else { 4 };
+            if tick % mm_every == 0 {
                 steam.poll_matchmaking(&shared, &app);
-                steam.ensure_queue_lobby(Arc::clone(&shared));
-                if let Ok(net) = shared.network_manager.lock() {
-                    if net.searching {
-                        let _ = app.emit("steam_status", net.status.clone());
+                if !match_live {
+                    steam.ensure_queue_lobby(Arc::clone(&shared));
+                    if let Ok(net) = shared.network_manager.lock() {
+                        if net.searching {
+                            let _ = app.emit("steam_status", net.status.clone());
+                        }
                     }
                 }
             }
 
-            std::thread::sleep(Duration::from_millis(25));
+            // In-match: pump hard (1ms) — kills ~50–80ms stack latency from 25ms sleep.
+            // Queue: 15ms is fine for lobby list cadence.
+            std::thread::sleep(Duration::from_millis(if match_live { 1 } else { 15 }));
         }
     });
 }

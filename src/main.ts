@@ -31,12 +31,15 @@ import {
   clearQueueLog,
   appendQueueLog,
   renderUpdateOverlay,
+  notifyDustChanged,
 } from './ui';
 import { soundSystem } from './sound';
 import { LocalGameEngine } from './engine';
 import type { WeaponType } from './weapons';
 import type { SkinId } from './skins';
 import { DEFAULT_SKIN } from './skins';
+import type { HatId } from './hats';
+import { DEFAULT_HAT, awardMatchDust } from './hats';
 import { getBotInput } from './bot';
 import {
   checkForUpdates,
@@ -211,15 +214,17 @@ function setupEvents(): void {
     const detail = e.detail as {
       loadouts: [WeaponType, WeaponType];
       skins?: [SkinId, SkinId];
+      hats?: [HatId, HatId];
       mode: 'local' | 'online' | 'bot';
     };
     const skins = detail.skins ?? [DEFAULT_SKIN, DEFAULT_SKIN];
+    const hats = detail.hats ?? [DEFAULT_HAT, DEFAULT_HAT];
     if (detail.mode === 'local') {
-      startLocalWithLoadout(detail.loadouts, skins);
+      startLocalWithLoadout(detail.loadouts, skins, hats);
     } else if (detail.mode === 'bot') {
-      void startBotMatchmakingSim(detail.loadouts, skins);
+      void startBotMatchmakingSim(detail.loadouts, skins, hats);
     } else {
-      void handleFindMatch(detail.loadouts[0], skins[0]);
+      void handleFindMatch(detail.loadouts[0], skins[0], hats[0]);
     }
   }) as EventListener);
   window.addEventListener('ui:leaveLobby', handleLeaveLobby);
@@ -324,9 +329,18 @@ function setupEvents(): void {
       switchScreen('start');
     });
     tauriListen('match_found', (payload) => {
-      const data = payload.payload as { player_id?: number; is_host?: boolean };
+      const data = payload.payload as {
+        player_id?: number;
+        is_host?: boolean;
+        countdown_timer?: number;
+        round_state?: string;
+      };
       if (isGameRunning && isOnline) {
-        // Idempotent — ignore double match_found
+        // Idempotent — ignore double match_found, but re-seed countdown if needed
+        if (data.round_state === 'countdown' || (data.countdown_timer ?? 0) > 0) {
+          showCountdown(data.countdown_timer ?? 3);
+          lastRoundState = 'countdown';
+        }
         return;
       }
       localPlayerId = data.player_id ?? 0;
@@ -335,6 +349,7 @@ function setupEvents(): void {
       isBotMatch = false;
       localEngine = null;
       lastRoundState = '';
+      resetOnlinePrediction();
       resetCombatFx();
       setParticles([]);
       setScreenShake(0);
@@ -346,27 +361,113 @@ function setupEvents(): void {
         'ok'
       );
       switchScreen('game');
+      // switchScreen clears countdown — re-apply immediately for P2
+      if (data.round_state === 'countdown' || (data.countdown_timer ?? 0) > 0) {
+        showCountdown(data.countdown_timer ?? 3);
+        lastRoundState = 'countdown';
+      } else {
+        // Host-side fallback: show 3 until first state arrives
+        showCountdown(3);
+        lastRoundState = 'countdown';
+      }
       isGameRunning = true;
       void ensureFullscreen(true);
       fitAppToViewport();
-      soundSystem.play('round_start');
+      // Don't play fight SFX on match_found — wait for countdown → playing
       // Push loadout again now that match exists
       if (pendingOnlineLoadout && tauriInvoke) {
         void tauriInvoke('set_loadout', {
           primary: pendingOnlineLoadout.primary,
           skin: pendingOnlineLoadout.skin,
+          hat: pendingOnlineLoadout.hat,
         }).catch(() => undefined);
       }
     });
   }
 }
 
-let pendingOnlineLoadout: { primary: WeaponType; skin: SkinId } | null = null;
+let pendingOnlineLoadout: { primary: WeaponType; skin: SkinId; hat: HatId } | null = null;
 let onlineInputTick = 0;
+let onlineInputAccum = 0;
+
+/** Client-side prediction for local player (host-authoritative reconcile). */
+const PRED_SPEED = 150.5;
+const PRED_DASH_MULT = 3.2;
+let predX = 0;
+let predY = 0;
+let predAim = 0;
+let predDashTimer = 0;
+let predReady = false;
+
+function resetOnlinePrediction(): void {
+  predReady = false;
+  predX = 0;
+  predY = 0;
+  predAim = 0;
+  predDashTimer = 0;
+  onlineInputAccum = 0;
+  onlineInputTick = 0;
+}
+
+function seedPredictionFromState(state: GameState): void {
+  const me = state.players.find((p) => p.id === localPlayerId);
+  if (!me) return;
+  if (!predReady) {
+    predX = me.x;
+    predY = me.y;
+    predAim = me.aim_angle ?? 0;
+    predReady = true;
+    return;
+  }
+  // Soft reconcile when error is small; hard snap when large
+  const err = Math.hypot(predX - me.x, predY - me.y);
+  if (err > 28) {
+    predX = me.x;
+    predY = me.y;
+  } else if (err > 1) {
+    predX += (me.x - predX) * 0.4;
+    predY += (me.y - predY) * 0.4;
+  }
+  predAim = me.aim_angle ?? predAim;
+}
+
+function integratePrediction(
+  dt: number,
+  moveX: number,
+  moveY: number,
+  aim: number,
+  dash: boolean
+): void {
+  if (!predReady) return;
+  predAim = aim;
+  if (dash && predDashTimer <= 0) {
+    predDashTimer = 0.14;
+  }
+  if (predDashTimer > 0) predDashTimer = Math.max(0, predDashTimer - dt);
+  const len = Math.hypot(moveX, moveY);
+  if (len > 0.01) {
+    const ndx = moveX / len;
+    const ndy = moveY / len;
+    const spd = predDashTimer > 0 ? PRED_SPEED * PRED_DASH_MULT : PRED_SPEED;
+    predX += ndx * spd * dt;
+    predY += ndy * spd * dt;
+  }
+}
+
+/** Overlay predicted local pose onto authoritative snapshot for smooth local feel. */
+function applyPredictionToState(state: GameState): GameState {
+  if (!predReady || !isOnline || isLocalPlay) return state;
+  const players = state.players.map((p) => {
+    if (p.id !== localPlayerId) return p;
+    return { ...p, x: predX, y: predY, aim_angle: predAim };
+  });
+  return { ...state, players };
+}
 
 function startLocalWithLoadout(
   loadouts: [WeaponType, WeaponType],
-  skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN]
+  skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN],
+  hats: [HatId, HatId] = [DEFAULT_HAT, DEFAULT_HAT]
 ): void {
   cancelBotSim();
   resetCombatFx();
@@ -377,6 +478,7 @@ function startLocalWithLoadout(
   localEngine = new LocalGameEngine();
   localEngine.setLoadouts(loadouts[0], loadouts[1]);
   localEngine.setSkins(skins[0], skins[1]);
+  localEngine.setHats(hats[0], hats[1]);
   localEngine.setFeedbackFocus(null); // both players local
   localEngine.resetMatch();
   lastRoundState = '';
@@ -392,7 +494,8 @@ function startLocalWithLoadout(
 /** Simulated matchmaking + bot opponent (solo debug). */
 async function startBotMatchmakingSim(
   loadouts: [WeaponType, WeaponType],
-  skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN]
+  skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN],
+  hats: [HatId, HatId] = [DEFAULT_HAT, DEFAULT_HAT]
 ): Promise<void> {
   cancelBotSim();
   isLocalPlay = true;
@@ -448,6 +551,8 @@ async function startBotMatchmakingSim(
   const botSkin: SkinId =
     skins[0] === 'shadow' ? 'ember' : skins[0] === 'ember' ? 'ocean' : 'shadow';
   localEngine.setSkins(skins[0], botSkin);
+  const botHat: HatId = hats[0] === 'cap' ? 'beanie' : 'cap';
+  localEngine.setHats(hats[0], botHat);
   localEngine.setFeedbackFocus(0); // human only for hitmarker / hurt flash
   localEngine.resetMatch();
   lastRoundState = '';
@@ -501,7 +606,8 @@ async function handleInviteFriends(): Promise<void> {
 
 async function handleFindMatch(
   primary: WeaponType = 'AR',
-  skin: SkinId = DEFAULT_SKIN
+  skin: SkinId = DEFAULT_SKIN,
+  hat: HatId = DEFAULT_HAT
 ): Promise<void> {
   cancelBotSim();
   isLocalPlay = false;
@@ -509,7 +615,7 @@ async function handleFindMatch(
   isBotMatch = false;
   localEngine = null;
   isGameRunning = false;
-  pendingOnlineLoadout = { primary, skin };
+  pendingOnlineLoadout = { primary, skin, hat };
   switchScreen('lobby');
   clearQueueLog();
   updateLobbyInfo('Searching for opponent…');
@@ -532,8 +638,8 @@ async function handleFindMatch(
   }
 
   try {
-    await tauriInvoke('set_loadout', { primary, skin });
-    appendQueueLog(`Loadout locked: ${primary} · ${skin}`, 'ok');
+    await tauriInvoke('set_loadout', { primary, skin, hat });
+    appendQueueLog(`Loadout locked: ${primary} · ${skin} · ${hat}`, 'ok');
     appendQueueLog('Calling steam_find_match…', 'info');
     appendQueueLog('Need: Steam running + logged in (AppID 480 Spacewar)', 'info');
     const result = await tauriInvoke('steam_find_match');
@@ -625,6 +731,7 @@ function handleGameStateUpdate(state: GameState): void {
     state.match_time = 0;
   }
   if (!state.grenades) state.grenades = [];
+  if (!state.players) state.players = [];
   for (const p of state.players) {
     if (p.aim_angle === undefined) p.aim_angle = 0;
     if (p.dash_cooldown === undefined) p.dash_cooldown = 0;
@@ -632,13 +739,22 @@ function handleGameStateUpdate(state: GameState): void {
     if (p.grenade_cooldown === undefined) p.grenade_cooldown = 0;
   }
 
-  currentGameState = state;
-  updateGameState(state);
-  updateHUD(state);
+  // Reconcile client prediction against host authority
+  if (isOnline && !isLocalPlay && state.players.length > 0) {
+    seedPredictionFromState(state);
+  }
+
+  const display = applyPredictionToState(state);
+  currentGameState = display;
+  updateGameState(display);
+  updateHUD(display);
 
   if (state.round_state !== lastRoundState) {
     onRoundStateChanged(state);
     lastRoundState = state.round_state;
+  } else if (state.round_state === 'countdown') {
+    // Keep overlay in sync even without state transition (P2 missed first transition)
+    showCountdown(state.countdown_timer);
   }
 }
 
@@ -649,6 +765,7 @@ function onRoundStateChanged(state: GameState): void {
       break;
     case 'playing':
       hideCountdown();
+      soundSystem.play('round_start');
       break;
     case 'round_end':
       if (state.winner_id !== null && state.winner_id !== undefined) {
@@ -658,18 +775,58 @@ function onRoundStateChanged(state: GameState): void {
     case 'match_end':
       if (state.winner_id !== null && state.winner_id !== undefined) {
         showRoundEnd(state.winner_id, state.score, true);
+        grantMatchDustReward(state);
       }
       break;
   }
 }
 
-function processOnlineInput(): void {
+/** Dust for hat unlocks — once per finished match. */
+let lastDustMatchKey = '';
+function grantMatchDustReward(state: GameState): void {
+  const key = `${state.score[0]}-${state.score[1]}-${state.winner_id}-${isOnline ? 'on' : 'off'}-${state.tick}`;
+  // Dedupe within same end screen (state may re-fire)
+  if (lastDustMatchKey === key) return;
+  // Soft dedupe: same scoreline within a few seconds is the same match
+  const soft = `${state.score[0]}-${state.score[1]}-${state.winner_id}`;
+  if (lastDustMatchKey.startsWith(soft + '@')) {
+    const t = Number(lastDustMatchKey.split('@')[1] || 0);
+    if (Date.now() - t < 8000) return;
+  }
+  lastDustMatchKey = soft + '@' + Date.now();
+
+  const focus = isOnline || isBotMatch ? localPlayerId : state.winner_id ?? 0;
+  const won = state.winner_id === focus;
+  const roundsWon = state.score[focus] ?? 0;
+  const gained = awardMatchDust({ won, roundsWon, isOnline });
+  notifyDustChanged();
+  // Surface on end message
+  const msg = document.getElementById('endMessage');
+  if (msg && gained > 0) {
+    msg.textContent = `${msg.textContent ?? ''}  ·  +${gained} Dust`;
+  }
+}
+
+function processOnlineInput(dt: number): void {
   if (!tauriInvoke || !isOnline || !isGameRunning) return;
-  // Don't require state for sending — host needs early inputs during countdown too
+
+  // Aim / predict from predicted pose when available
   const me = currentGameState?.players.find((p) => p.id === localPlayerId);
-  const cx = me ? me.x + 14 : 640;
-  const cy = me ? me.y + 14 : 360;
+  const cx = predReady ? predX + 14 : me ? me.x + 14 : 640;
+  const cy = predReady ? predY + 14 : me ? me.y + 14 : 360;
   const input = getOnlineInput(cx, cy);
+
+  // Local prediction only while playing (countdown freezes bodies)
+  if (currentGameState?.round_state === 'playing') {
+    integratePrediction(dt, input.moveX, input.moveY, input.aimAngle, input.dash);
+  }
+
+  // Cap net input rate ~60Hz but always send action edges immediately
+  onlineInputAccum += dt;
+  const forceSend =
+    input.dash || input.reload || input.weaponSwitch || input.grenade;
+  if (!forceSend && onlineInputAccum < 1 / 60) return;
+  onlineInputAccum = 0;
   onlineInputTick += 1;
 
   void tauriInvoke('send_input', {
@@ -728,7 +885,13 @@ function gameLoop(timestamp: number): void {
       }
     } else {
       // Online: never pause-gate inputs (would freeze you while opponent plays)
-      processOnlineInput();
+      processOnlineInput(deltaTime);
+      // Push predicted pose into renderer every frame for smooth local avatar
+      if (currentGameState && predReady && currentGameState.round_state === 'playing') {
+        const display = applyPredictionToState(currentGameState);
+        currentGameState = display;
+        updateGameState(display);
+      }
     }
   }
 

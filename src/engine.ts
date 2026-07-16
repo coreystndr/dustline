@@ -4,6 +4,7 @@ import { GameState, InputState, Particle, RoundState } from './types';
 import { soundSystem } from './sound';
 import { WeaponType, WeaponState, createWeapon, ammoDisplay } from './weapons';
 import { SkinId, DEFAULT_SKIN } from './skins';
+import { HatId, DEFAULT_HAT } from './hats';
 import {
   vfxMuzzle,
   vfxHit,
@@ -76,6 +77,8 @@ class LocalPlayer {
   primaryLoadout: WeaponType = 'AR';
   /** Visual skin applied to all weapons this player holds */
   skinId: SkinId = DEFAULT_SKIN;
+  /** Cosmetic hat */
+  hatId: HatId = DEFAULT_HAT;
   /** Seconds without moving — used for sniper ADS-perfect accuracy */
   stillTime = 0;
   /** True if moved this frame */
@@ -83,13 +86,21 @@ class LocalPlayer {
   grenades = GRENADE_START;
   grenadeCooldown = 0;
 
-  constructor(id: number, x: number, y: number, primary: WeaponType = 'AR', skinId: SkinId = DEFAULT_SKIN) {
+  constructor(
+    id: number,
+    x: number,
+    y: number,
+    primary: WeaponType = 'AR',
+    skinId: SkinId = DEFAULT_SKIN,
+    hatId: HatId = DEFAULT_HAT
+  ) {
     this.id = id;
     this.x = x;
     this.y = y;
     this.aimAngle = id === 0 ? 0 : Math.PI;
     this.primaryLoadout = primary;
     this.skinId = skinId;
+    this.hatId = hatId;
     this.applyLoadout();
   }
 
@@ -245,6 +256,7 @@ export class LocalGameEngine {
 
   loadouts: [WeaponType, WeaponType] = ['AR', 'SMG'];
   skins: [SkinId, SkinId] = [DEFAULT_SKIN, DEFAULT_SKIN];
+  hats: [HatId, HatId] = [DEFAULT_HAT, DEFAULT_HAT];
 
   private p1PrevSwitch = false;
   private p1PrevReload = false;
@@ -283,14 +295,20 @@ export class LocalGameEngine {
     if (this.players[1]) this.players[1].skinId = p2;
   }
 
+  setHats(p1: HatId, p2: HatId): void {
+    this.hats = [p1, p2];
+    if (this.players[0]) this.players[0].hatId = p1;
+    if (this.players[1]) this.players[1].hatId = p2;
+  }
+
   resetMatch(): void {
     this.tick = 0;
     this.roundState = 'waiting';
     this.currentRound = 1;
     this.score = [0, 0];
     this.players = [
-      new LocalPlayer(0, 220, 360 - 14, this.loadouts[0], this.skins[0]),
-      new LocalPlayer(1, 1020, 360 - 14, this.loadouts[1], this.skins[1]),
+      new LocalPlayer(0, 220, 360 - 14, this.loadouts[0], this.skins[0], this.hats[0]),
+      new LocalPlayer(1, 1020, 360 - 14, this.loadouts[1], this.skins[1], this.hats[1]),
     ];
     this.projectiles = [];
     this.grenades = [];
@@ -348,6 +366,8 @@ export class LocalGameEngine {
     this.players[1].primaryLoadout = this.loadouts[1];
     this.players[0].skinId = this.skins[0];
     this.players[1].skinId = this.skins[1];
+    this.players[0].hatId = this.hats[0];
+    this.players[1].hatId = this.hats[1];
     this.players[0].respawn(220, 360 - 14);
     this.players[1].respawn(1020, 360 - 14);
     this.initPickups();
@@ -1007,6 +1027,7 @@ export class LocalGameEngine {
         current_weapon: p.getCurrentWeapon().name,
         weapon_type: p.getCurrentWeapon().type,
         skin_id: p.skinId,
+        hat_id: p.hatId,
         ammo_display: ammoDisplay(p.getCurrentWeapon()),
         is_alive: p.isAlive,
         dash_cooldown: Math.max(0, p.dashCooldown),
