@@ -21,7 +21,10 @@ const bundleDir = path.join(root, 'src-tauri', 'target', 'release', 'bundle');
 const webDl = path.join(root, 'website', 'public', 'downloads');
 const latestPath = path.join(root, 'website', 'public', 'updates', 'latest.json');
 
-const SITE = process.env.DUSTLINE_SITE_URL || 'https://website-red-six-83.vercel.app';
+// Prefer GitHub Releases as CDN for updater packages
+const SITE =
+  process.env.DUSTLINE_SITE_URL ||
+  'https://github.com/coreystndr/dustline/releases/latest/download';
 
 function arg(name, fallback = '') {
   const i = process.argv.indexOf(name);

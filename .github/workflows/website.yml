@@ -1,0 +1,49 @@
+# Redeploy website when site files change.
+# Prefer linking the GitHub repo in Vercel Dashboard (root: website).
+# This workflow is a fallback that deploys via Vercel CLI if VERCEL_TOKEN is set.
+
+name: Website
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "website/**"
+      - ".github/workflows/website.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Pull Vercel env
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: website
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        run: |
+          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} || \
+          vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: website
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Skip notice
+        if: ${{ secrets.VERCEL_TOKEN == '' }}
+        run: |
+          echo "VERCEL_TOKEN not set."
+          echo "Link the GitHub repo in Vercel → Project → Settings → Git"
+          echo "Root Directory: website"
+          echo "That auto-deploys on every push to master."

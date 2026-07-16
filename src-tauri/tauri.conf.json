@@ -55,6 +55,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5Nzk5REE0MzE2QUZENzYKUldSMi9Xb3hwSjE1K1RDV2xRVWtoazhySGF1dVNFVS9nWFRLeVhuZUtaUFFNNFFFamtNSVBidDAK",
       "endpoints": [
+        "https://github.com/coreystndr/dustline/releases/latest/download/latest.json",
         "https://website-red-six-83.vercel.app/updates/latest.json"
       ],
       "windows": {

@@ -18,21 +18,18 @@ npm run dev
 **Test vs Bot** = solo debug with fake matchmaking.  
 **Find Match** = real Steam P2P (two accounts, Steam running).
 
-## Make release-ready
+## Releases (GitHub = source of truth)
+
+Auto-updater + downloads come from **GitHub Releases** (CI).
 
 ```bash
-# 1) Smoke check + frontend build
-npm run ready
-
-# 2) Full signed installer + website update files
-npm run release -- --notes "What changed"
-
-# 3) Deploy site + binaries
-npm run site:deploy
+# set secret once: TAURI_SIGNING_PRIVATE_KEY = contents of keys/dustline.key
+git tag v1.0.1
+git push origin v1.0.1
+# → Actions builds installer, signs updater, uploads Release
 ```
 
-Signing key: `keys/dustline.key` (gitignored).  
-Public key is embedded in `src-tauri/tauri.conf.json`.
+Vercel hosts the landing page from `website/` (link the repo in Vercel, root = `website`).
 
 Details: [UPDATE.md](./UPDATE.md)
 

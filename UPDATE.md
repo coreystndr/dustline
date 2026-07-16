@@ -1,84 +1,113 @@
-# DUSTLINE — Auto-Updater & Website
+# DUSTLINE — Auto-Updater & Vercel (from GitHub)
 
-## Architecture
+Everything ships **from the GitHub repo**:
 
-| Piece | Role |
-|--------|------|
-| **Tauri updater plugin** | Checks `https://dustline.vercel.app/updates/latest.json`, downloads signed artifact, installs |
-| **Custom UI** | In-game overlay (progress, notes, install / later) |
-| **NSIS installer** | User-facing download from the website |
-| **Vercel site** (`website/`) | Landing page + `/downloads/*` + `/updates/latest.json` — live: https://website-red-six-83.vercel.app |
-| **Signing key** | `keys/dustline.key` (private, **never commit**) · pubkey in `tauri.conf.json` |
+| Piece | Source of truth |
+|--------|------------------|
+| Code | https://github.com/coreystndr/dustline |
+| Installer + update packages | **GitHub Releases** (CI) |
+| Update manifest `latest.json` | **GitHub Releases** asset + optional Vercel mirror |
+| Landing page | **Vercel** (Git-linked `website/` folder) |
 
-## First-time setup
+## Auto-updater flow
 
-1. Keys already generated under `keys/` (or regenerate):
-
-```bash
-npx tauri signer generate -w keys/dustline.key
+```
+git tag v1.0.1 && git push origin v1.0.1
+        ↓
+GitHub Actions: Release workflow (windows-latest)
+        ↓
+npm run tauri build  (signed with TAURI_SIGNING_PRIVATE_KEY secret)
+        ↓
+Upload to GitHub Release:
+  - DUSTLINE_*_x64-setup.exe
+  - *.nsis.zip + *.nsis.zip.sig
+  - latest.json
+        ↓
+Installed game calls:
+  https://github.com/coreystndr/dustline/releases/latest/download/latest.json
+        ↓
+Downloads zip from same Release → installs → relaunch
 ```
 
-2. Put the **public** key into `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`  
-   (already done for the keypair in this repo).
+Configured in `src-tauri/tauri.conf.json`:
 
-3. Deploy website (project root):
-
-```bash
-cd website
-npx vercel
-# then production:
-npx vercel --prod
+```json
+"endpoints": [
+  "https://github.com/coreystndr/dustline/releases/latest/download/latest.json",
+  "https://website-red-six-83.vercel.app/updates/latest.json"
+]
 ```
 
-Point the domain / project to `dustline.vercel.app` or update the endpoint URL in:
+## One-time GitHub setup
 
-- `src-tauri/tauri.conf.json` → `plugins.updater.endpoints`
-- `scripts/publish-update.mjs` → `DUSTLINE_SITE_URL`
-- `src/updater.ts` → `openDownloadSite()` URL
+### 1. Signing secret
 
-## Build a signed release
+Local private key: `keys/dustline.key` (never commit).
 
 ```powershell
-cd C:\Users\iCor\top-down-shooter
-
-# Private key for signing updater artifacts
-$env:TAURI_SIGNING_PRIVATE_KEY_PATH = (Resolve-Path .\keys\dustline.key).Path
-# optional if key has a password:
-# $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "..."
-
-# Bump version in package.json + tauri.conf.json + Cargo.toml together
-npm run tauri:build
-
-# Copy artifacts into website/public and rewrite latest.json
-node scripts/publish-update.mjs --notes "What changed in this release"
-
-# Ship site + binaries
-cd website
-npx vercel --prod
+# Copy key file contents into a repo secret:
+# GitHub → dustline → Settings → Secrets → Actions
+# Name: TAURI_SIGNING_PRIVATE_KEY
+# Value: entire contents of keys/dustline.key
 ```
 
-Artifacts expected under:
+Optional if the key has a password: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
-`src-tauri/target/release/bundle/nsis/`
+### 2. Vercel ↔ GitHub
 
-- `*_x64-setup.exe` — website download button  
-- `*.nsis.zip` + `*.nsis.zip.sig` — auto-updater payload  
+1. Open [vercel.com](https://vercel.com) → **Add New Project**
+2. Import **coreystndr/dustline**
+3. **Root Directory:** `website`
+4. Framework: Other · Output: `public`
+5. Deploy
 
-## In-app UX
+Every push to `master` that touches `website/**` redeploys the site.
 
-- **Boot:** silent update check after ~2.5s  
-- **Menu → Check Updates:** opens custom overlay  
-- Overlay: current → new version, notes, progress bar, **Download & Install**, **Open website**, **Later**  
-- After install: app **relaunch** via `plugin-process`
+#### Optional CLI deploy secrets (fallback workflow)
 
-## Local testing without Vercel
+If you use `.github/workflows/website.yml` CLI deploy:
 
-1. Host `website/public` with any static server.  
-2. Temporarily set endpoints to that URL (or use a tunnel).  
-3. Build two versions (e.g. 1.0.0 installed, 1.0.1 published) and verify the overlay.
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
 
-## Security notes
+(From Vercel project settings / `vercel link`.)
 
-- Never commit `keys/dustline.key`  
-- CI should use `TAURI_SIGNING_PRIVATE_KEY` secret  
-- If the private key is lost, generate a new pair and ship a manual reinstall (old clients cannot verify new signatures)
+## Publish a new version
+
+```bash
+# bump version in package.json (optional — tag can drive it)
+git commit -am "chore: prepare 1.0.1"
+git tag v1.0.1
+git push origin master
+git push origin v1.0.1
+```
+
+Or **Actions → Release → Run workflow** and enter version + notes.
+
+## Local release (without CI)
+
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw .\keys\dustline.key
+npm run tauri:build
+# then create a GitHub release manually and attach:
+#   nsis setup.exe, nsis.zip, nsis.zip.sig, latest.json
+```
+
+## Website download buttons
+
+`website/public/site.js` loads:
+
+1. `github.com/.../releases/latest/download/latest.json`
+2. else GitHub API `releases/latest`
+3. else local `/updates/latest.json` (Vercel mirror)
+
+So downloads always prefer **GitHub Releases**.
+
+## Secrets checklist
+
+| Secret | Where | Purpose |
+|--------|--------|---------|
+| `TAURI_SIGNING_PRIVATE_KEY` | GitHub Actions | Sign updater packages |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | GitHub Actions (optional) | Key password |
+| Vercel Git integration | Vercel dashboard | Auto-deploy site from repo |

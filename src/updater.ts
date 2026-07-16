@@ -207,6 +207,7 @@ export function dismissUpdateUi(): void {
 
 /** Open the public download / changelog site. */
 export async function openDownloadSite(): Promise<void> {
-  const url = 'https://website-red-six-83.vercel.app';
+  // Prefer GitHub (source of truth), website is the pretty landing page
+  const url = 'https://github.com/coreystndr/dustline/releases/latest';
   window.open(url, '_blank', 'noopener,noreferrer');
 }
