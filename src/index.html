@@ -355,6 +355,38 @@
       border-radius: 3px;
       margin-right: 2px;
     }
+    .pad-badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(201, 184, 150, 0.55);
+      border: 1px solid rgba(242, 235, 224, 0.12);
+      padding: 1px 7px;
+      border-radius: 3px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .pad-badge.on {
+      color: #c8e6a0;
+      border-color: rgba(160, 200, 100, 0.45);
+      background: rgba(80, 120, 40, 0.2);
+    }
+
+    /* Gamepad / keyboard menu focus ring */
+    .menu-btn.pad-focus,
+    .weapon-card.pad-focus,
+    .skin-swatch.pad-focus {
+      outline: 2px solid rgba(232, 180, 100, 0.95);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(232, 180, 100, 0.18);
+    }
+    .menu-btn.pad-focus {
+      background: rgba(232, 180, 100, 0.12);
+      border-color: rgba(232, 180, 100, 0.45);
+    }
 
     /* Right action column */
     .mm-right {
@@ -919,6 +951,55 @@
       width: 400px;
       text-align: center;
       padding: 36px 32px 28px;
+    }
+    .lobby-format {
+      margin: 0 0 14px;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .lobby-slots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 0 0 18px;
+    }
+    .lobby-slot {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 10px;
+      background: rgba(8, 12, 14, 0.55);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 58px;
+      justify-content: center;
+    }
+    .lobby-slot .ls-label {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      font-weight: 800;
+      color: var(--muted);
+    }
+    .lobby-slot .ls-state {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--sand);
+    }
+    .lobby-slot.filled {
+      border-color: rgba(90, 154, 72, 0.45);
+      background: rgba(90, 154, 72, 0.08);
+    }
+    .lobby-slot.filled .ls-state { color: #8ecf72; }
+    .lobby-slot.filled.ready {
+      border-color: rgba(212, 98, 46, 0.5);
+      box-shadow: 0 0 0 1px rgba(212, 98, 46, 0.2);
+    }
+    .lobby-slot.filled.ready .ls-state { color: #e8a060; }
+    .lobby-slot.empty .ls-state {
+      color: var(--muted);
+      font-weight: 600;
     }
 
     .search-ring {
@@ -1721,11 +1802,11 @@
                 <div class="mm-stat"><b>Center</b><span>Hits harder</span></div>
               </div>
               <div class="mm-keys">
-                <kbd>WASD</kbd> move
-                · <kbd>Mouse</kbd> aim
-                · <kbd>LMB</kbd> fire
-                · <kbd>G</kbd> nade
-                · <kbd>Shift</kbd> dash
+                <kbd>WASD</kbd>/<kbd>L-Stick</kbd> move
+                · <kbd>Mouse</kbd>/<kbd>R-Stick</kbd> aim
+                · <kbd>LMB</kbd>/<kbd>RT</kbd> fire
+                · <kbd>Shift</kbd>/<kbd>A</kbd> dash
+                · <span id="padBadge" class="pad-badge">Pad —</span>
               </div>
             </div>
 
@@ -1788,7 +1869,7 @@
           <div class="loadout-col" id="loadoutP1">
             <div class="loadout-col-head">
               <h3>PLAYER 1</h3>
-              <span class="loadout-badge">WASD · Mouse</span>
+              <span class="loadout-badge">WASD · Mouse · Pad 1</span>
             </div>
             <div class="weapon-cards" data-player="0"></div>
             <div class="skin-picker" data-player="0"></div>
@@ -1797,14 +1878,14 @@
           <div class="loadout-col" id="loadoutP2">
             <div class="loadout-col-head">
               <h3>PLAYER 2</h3>
-              <span class="loadout-badge">Arrows · Enter</span>
+              <span class="loadout-badge">Arrows · Pad 2</span>
             </div>
             <div class="weapon-cards" data-player="1"></div>
             <div class="skin-picker" data-player="1"></div>
             <div class="hat-picker" data-player="1"></div>
           </div>
         </div>
-        <p class="loadout-note">Q / RShift switch · R reload · Shift / M dash · Locked hats cost Dust · Free: None + Cap</p>
+        <p class="loadout-note">KB: Q switch · R reload · Shift dash · Pad: X switch · B reload · A dash · RT fire · LT/Y nade · Navigate loadout with D-pad</p>
         <div class="loadout-actions">
           <button class="menu-btn primary" id="btnStartLoadout">Start Duel</button>
           <button class="menu-btn ghost" id="btnLoadoutBack">Back</button>
@@ -1820,6 +1901,11 @@
       <div class="screen-content">
         <div class="panel mm-card">
           <div class="section-title">Queue <strong>MATCHMAKING</strong></div>
+          <p class="lobby-format" id="lobbyMeta">Waiting for player… (0/2) · Best of 5</p>
+          <div class="lobby-slots" id="lobbySlots" aria-live="polite">
+            <div class="lobby-slot empty"><span class="ls-label">P1</span><span class="ls-state">Waiting…</span></div>
+            <div class="lobby-slot empty"><span class="ls-label">P2</span><span class="ls-state">Waiting…</span></div>
+          </div>
           <div class="search-ring" aria-hidden="true"><div class="search-ring-core"></div></div>
           <p id="lobbyInfo">Searching for opponent…</p>
           <p id="lobbyStatus"></p>
@@ -1963,7 +2049,7 @@
         <div class="section-title">Input <strong style="font-size:22px;letter-spacing:0.16em;">CONTROLS</strong></div>
         <div class="controls-grid">
           <div class="control-panel">
-            <h3>PLAYER 1</h3>
+            <h3>KEYBOARD P1</h3>
             <div class="control-item"><span>Move</span><span class="control-key">W A S D</span></div>
             <div class="control-item"><span>Aim / Shoot</span><span class="control-key">Mouse / LMB</span></div>
             <div class="control-item"><span>Switch</span><span class="control-key">Q</span></div>
@@ -1972,7 +2058,7 @@
             <div class="control-item"><span>Grenade</span><span class="control-key">G / RMB</span></div>
           </div>
           <div class="control-panel">
-            <h3>PLAYER 2</h3>
+            <h3>KEYBOARD P2</h3>
             <div class="control-item"><span>Move / Aim</span><span class="control-key">Arrows</span></div>
             <div class="control-item"><span>Shoot</span><span class="control-key">Enter</span></div>
             <div class="control-item"><span>Switch</span><span class="control-key">RShift</span></div>
@@ -1981,8 +2067,21 @@
             <div class="control-item"><span>Grenade</span><span class="control-key">. / N</span></div>
           </div>
           <div class="control-panel wide">
+            <h3>CONTROLLER (Xbox / DualSense / Pro)</h3>
+            <div class="control-item"><span>Move</span><span class="control-key">Left stick · D-pad</span></div>
+            <div class="control-item"><span>Aim</span><span class="control-key">Right stick</span></div>
+            <div class="control-item"><span>Shoot</span><span class="control-key">RT / R2</span></div>
+            <div class="control-item"><span>Grenade</span><span class="control-key">LT / L2 · Y / △</span></div>
+            <div class="control-item"><span>Dash</span><span class="control-key">A / ✕ · L3</span></div>
+            <div class="control-item"><span>Reload</span><span class="control-key">B / ○ · RB</span></div>
+            <div class="control-item"><span>Switch weapon</span><span class="control-key">X / □ · LB</span></div>
+            <div class="control-item"><span>Pause</span><span class="control-key">Start / Options</span></div>
+            <div class="control-item"><span>Menus</span><span class="control-key">D-pad · A confirm · B back</span></div>
+            <div class="control-item"><span>Local 2P</span><span class="control-key">Pad 1 = P1 · Pad 2 = P2</span></div>
+          </div>
+          <div class="control-panel wide">
             <h3>GENERAL</h3>
-            <div class="control-item"><span>Pause</span><span class="control-key">Esc</span></div>
+            <div class="control-item"><span>Pause</span><span class="control-key">Esc · Start</span></div>
             <div class="control-item"><span>Fullscreen</span><span class="control-key">F11</span></div>
             <div class="control-item"><span>Medkits</span><span class="control-key">Walk over</span></div>
             <div class="control-item"><span>Storm</span><span class="control-key">Stay in circle</span></div>
@@ -1990,7 +2089,7 @@
             <div class="control-item"><span>First shot / Sniper still</span><span class="control-key">100% acc</span></div>
           </div>
         </div>
-        <button class="menu-btn" id="btnCloseControls" style="width:100%;text-align:center;">Close</button>
+        <button class="menu-btn" id="btnCloseControls" style="width:100%;text-align:center;">Close <span class="btn-hint">B / Esc</span></button>
       </div>
     </div>
 

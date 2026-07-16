@@ -1,19 +1,23 @@
 {
-  "version": "1.0.7",
-  "notes": "Unlockable player hats: Dust currency, 13 cosmetics, loadout picker, online sync. Earn Dust by winning matches.",
-  "pub_date": "2026-07-16T04:09:12.493Z",
-  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.7_x64-setup.exe",
+  "version": "1.0.8",
+  "notes": "Multiplayer fix: wait for players (1/2), reliable P2 join (GameStart retry + state bootstrap), Best of 5 (first to 3), round-end overlay clears between rounds.",
+  "pub_date": "2026-07-16T04:19:10.766Z",
+  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.8_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSHFINmdMTCt1ZWtOaU5wSU5vWnBDVDJCekp6dDdBU0FSZ0VIYk0yWFMrZ1B5c0xPZHNuT09kdHBkNlFDSVh0WHVicStYNzJWSHVUUDhoamtyUklUNGdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTc0OTQ1CWZpbGU6RFVTVExJTkVfMS4wLjdfeDY0LXNldHVwLmV4ZQpjK0NwS2M1ZFFMTnl0TUtoWWJJTFhVcmxWODJ2QmV4c0NST1dNSFVndEZZSXhxMFlMMXdjbUl3dWZIc014SGtlQVpDS3d3Y1VGR3V2MXk1RC9JNE5DQT09Cg==",
-      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.7_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSG14MEhiVFlLR0lnYnEvME1YN3lKemJvZVFWd1ZRRDNFRFYxSnpubWozL0RIZFBSeGR0WlhLaVFMQVMyK0EvejNtdCtvMGNRai9ncm0yMUNRdlhyTXdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTc1NTQ2CWZpbGU6RFVTVExJTkVfMS4wLjhfeDY0LXNldHVwLmV4ZQppUHB5eEw1TXRIU0JOQzRTQTdjeExYWHJ5RmRlK3dzTjRhUkxhYjUzcXd6OTRxYkZWSG9FeUdFNVJCK3lncTFYRkZNK3pjYXlERmVuZHNSWHg4aXhBUT09Cg==",
+      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.8_x64-setup.exe"
     }
   },
   "mirrors": {
-    "github": "https://github.com/coreystndr/dustline/releases/latest/download/DUSTLINE_1.0.7_x64-setup.exe",
-    "vercel": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.7_x64-setup.exe"
+    "github": "https://github.com/coreystndr/dustline/releases/latest/download/DUSTLINE_1.0.8_x64-setup.exe",
+    "vercel": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.8_x64-setup.exe"
   },
   "history": [
+    {
+      "version": "1.0.7",
+      "notes": "Unlockable player hats: Dust currency, 13 cosmetics, loadout picker, online sync. Earn Dust by winning matches."
+    },
     {
       "version": "1.0.6",
       "notes": "Multiplayer overhaul: host-only sim, networked combat FX, loadouts/skins/grenades online, hit-location crits, reliable input, strict DUSTLINE lobbies, disconnect + invite cold-start."

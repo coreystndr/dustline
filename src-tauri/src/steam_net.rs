@@ -33,10 +33,14 @@ const RESCAN_MS: u64 = 900;
 const STUCK_MERGE_MS: u64 = 3500;
 /// Max time to search before hard create (even high steam ids).
 const HARD_CREATE_MS: u64 = 18_000;
-/// Host waits for Hello this long after 2 members, then starts anyway.
-const HELLO_WAIT_MS: u64 = 1500;
-/// Retransmit GameStart while countdown if no ack.
-const GAME_START_RETRY_MS: u64 = 400;
+/// Prefer starting only after peer Hello; after this, start anyway.
+const HELLO_WAIT_MS: u64 = 10_000;
+/// Minimum time with 2 lobby members before start (session warm-up).
+const MIN_READY_MS: u64 = 600;
+/// Retransmit GameStart until client acks (not only during countdown).
+const GAME_START_RETRY_MS: u64 = 350;
+/// Keep retransmitting GameStart this long after first send.
+const GAME_START_RETRY_WINDOW_MS: u64 = 25_000;
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -775,21 +779,29 @@ impl SteamRuntime {
                     return;
                 }
             }
-            // Host: retransmit GameStart while no ack and still in countdown
+            // Host: retransmit GameStart until client acks (P2 often misses first packets).
+            // Keep going past countdown — otherwise P2 never enters the match.
             if is_host && !peer_ack {
-                let in_cd = shared
-                    .game_state
-                    .lock()
-                    .map(|g| {
-                        matches!(g.round_state, crate::game::state::RoundState::Countdown)
-                    })
-                    .unwrap_or(false);
-                if in_cd {
-                    let now = now_ms();
-                    if start_sent_ms == 0 || now.saturating_sub(start_sent_ms) >= GAME_START_RETRY_MS
-                    {
-                        self.host_send_game_start(shared, app, false);
+                let now = now_ms();
+                let first = if start_sent_ms == 0 {
+                    now
+                } else {
+                    start_sent_ms
+                };
+                let in_window = now.saturating_sub(first) < GAME_START_RETRY_WINDOW_MS;
+                thread_local! {
+                    static LAST_GS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+                }
+                let due = LAST_GS.with(|c| {
+                    let last = c.get();
+                    let ok = last == 0 || now.saturating_sub(last) >= GAME_START_RETRY_MS;
+                    if ok {
+                        c.set(now);
                     }
+                    ok
+                });
+                if in_window && due {
+                    self.host_send_game_start(shared, app, false);
                 }
             }
             return;
@@ -804,17 +816,25 @@ impl SteamRuntime {
         let lobby = LobbyId::from_raw(lobby_raw);
         let members = self.mm().lobby_members(lobby);
 
-        // Still alone: periodically merge into another open lobby.
+        // Still alone: wait for player + periodically merge into another open lobby.
         if members.len() < 2 {
             if let Ok(mut net) = shared.network_manager.lock() {
                 net.two_player_since_ms = 0;
+                net.peer_hello = false;
             }
             self.maybe_merge_solo_queue(shared, lobby_raw, app);
             if let Ok(mut net) = shared.network_manager.lock() {
                 if net.searching && !net.match_started && net.lobby_id == Some(lobby_raw) {
-                    net.status = format!("In queue… ({}/2) lobby {}", members.len(), lobby_raw);
+                    net.status = format!(
+                        "Waiting for player… (1/2) · lobby {} · Best of 5",
+                        lobby_raw
+                    );
                 }
             }
+            let _ = app.emit(
+                "lobby_roster",
+                serde_json::json!({ "members": 1, "ready": false, "max_rounds": 5 }),
+            );
             return;
         }
 
@@ -827,8 +847,12 @@ impl SteamRuntime {
                 if let Some(r) = remote {
                     net.remote_steam_id = Some(r);
                 }
-                net.status = "Opponent in lobby — waiting for host…".into();
+                net.status = "Opponent found — waiting for host to start… (2/2)".into();
             }
+            let _ = app.emit(
+                "lobby_roster",
+                serde_json::json!({ "members": 2, "ready": false, "max_rounds": 5 }),
+            );
             // Keep sending Hello so host has loadout + session proof
             if let Some(r) = remote {
                 let (primary, skin, hat) = shared
@@ -856,7 +880,7 @@ impl SteamRuntime {
         }
 
         // Host readiness: wait for Hello (or HELLO_WAIT_MS) so P2 is ready
-        let (peer_hello, two_since) = {
+        let (peer_hello, two_since, loadout) = {
             let Ok(mut net) = shared.network_manager.lock() else {
                 return;
             };
@@ -869,18 +893,53 @@ impl SteamRuntime {
             if net.two_player_since_ms == 0 {
                 net.two_player_since_ms = now_ms();
             }
-            (net.peer_hello, net.two_player_since_ms)
+            (
+                net.peer_hello,
+                net.two_player_since_ms,
+                (
+                    net.local_primary.clone(),
+                    net.local_skin.clone(),
+                    net.local_hat.clone(),
+                ),
+            )
         };
 
+        // Host → client Hello warms the Steam session both ways (critical for P2).
+        if let Some(r) = remote {
+            self.send_event(
+                SteamId::from_raw(r),
+                &NetworkEvent::Hello {
+                    player_id: 0,
+                    primary: loadout.0,
+                    skin: loadout.1,
+                    hat: loadout.2,
+                },
+            );
+        }
+
         let waited = now_ms().saturating_sub(two_since);
-        if !peer_hello && waited < HELLO_WAIT_MS {
+        let ready = (peer_hello && waited >= MIN_READY_MS) || waited >= HELLO_WAIT_MS;
+        if !ready {
+            let status = if peer_hello {
+                format!("Opponent ready — starting… ({waited}ms)")
+            } else {
+                format!(
+                    "Waiting for player ready… (2/2) · {}s",
+                    ((HELLO_WAIT_MS.saturating_sub(waited) + 999) / 1000).max(1)
+                )
+            };
             if let Ok(mut net) = shared.network_manager.lock() {
-                net.status = format!(
-                    "Opponent joined — syncing… ({}ms)",
-                    HELLO_WAIT_MS.saturating_sub(waited)
-                );
+                net.status = status.clone();
             }
-            let _ = app.emit("steam_status", "Opponent joined — syncing session…");
+            let _ = app.emit("steam_status", status);
+            let _ = app.emit(
+                "lobby_roster",
+                serde_json::json!({
+                    "members": 2,
+                    "ready": peer_hello,
+                    "max_rounds": 5,
+                }),
+            );
             return;
         }
 
@@ -899,8 +958,9 @@ impl SteamRuntime {
             }
             net.local_player_id = 0;
             net.is_host = true;
-            net.status = "Match found! Starting…".into();
+            net.status = "Match found! Starting Best of 5…".into();
             net.peer_start_ack = false;
+            net.game_start_sent_ms = 0;
         }
 
         let _ = self.mm().set_lobby_joinable(lobby, false);
@@ -911,24 +971,29 @@ impl SteamRuntime {
             let Ok(mut game) = shared.game_state.lock() else {
                 return;
             };
-            if !game.players.iter().any(|p| p.id == 0) {
-                game.add_player(0);
-            }
-            if !game.players.iter().any(|p| p.id == 1) {
-                game.add_player(1);
-            }
+            // Fresh match — Best of 5 (first to 3)
+            *game = crate::game::state::GameState::new();
+            game.max_rounds = 5;
+            game.current_round = 1;
+            game.score = [0, 0];
+            game.add_player(0);
+            game.add_player(1);
             if let Ok(net) = shared.network_manager.lock() {
                 let hp = crate::game::weapons::WeaponType::from_str_loose(&net.local_primary);
                 let pp = crate::game::weapons::WeaponType::from_str_loose(&net.peer_primary);
                 game.set_player_loadout(0, hp, &net.local_skin, &net.local_hat);
                 game.set_player_loadout(1, pp, &net.peer_skin, &net.peer_hat);
             }
-            // Countdown starts only when host is ready to notify client
+            // Countdown only after both sides are in lobby (and preferably Hello'd)
             game.start_countdown();
         }
 
         self.host_send_game_start(shared, app, true);
-        let _ = app.emit("steam_status", "Match found — you are Player 1 (host)");
+        let _ = app.emit("steam_status", "Match found — you are Player 1 (host) · Best of 5");
+        let _ = app.emit(
+            "lobby_roster",
+            serde_json::json!({ "members": 2, "ready": true, "max_rounds": 5 }),
+        );
     }
 
     /// Build GameStart + seed snapshot and send to peer (and emit match_found once).
@@ -977,7 +1042,10 @@ impl SteamRuntime {
         }
 
         if let Ok(mut net) = shared.network_manager.lock() {
-            net.game_start_sent_ms = now_ms();
+            // Keep first-send timestamp for retry window (do not refresh on retransmit)
+            if net.game_start_sent_ms == 0 {
+                net.game_start_sent_ms = now_ms();
+            }
         }
 
         if first {
@@ -988,6 +1056,7 @@ impl SteamRuntime {
                     "is_host": true,
                     "countdown_timer": countdown,
                     "round_state": "countdown",
+                    "max_rounds": 5,
                 }),
             );
             // Host local UI: seed countdown immediately
@@ -995,6 +1064,65 @@ impl SteamRuntime {
                 let _ = app.emit("game_state", val);
             }
         }
+    }
+
+    /// Client missed GameStart but got a host snapshot — enter match as P2.
+    fn client_bootstrap_from_state(
+        &self,
+        shared: &SharedGameState,
+        app: &AppHandle,
+        from: u64,
+        value: &serde_json::Value,
+    ) {
+        let already = shared
+            .network_manager
+            .lock()
+            .map(|n| n.match_started)
+            .unwrap_or(true);
+        if already {
+            return;
+        }
+
+        let countdown = value
+            .get("countdown_timer")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(3.0);
+        let round_state = value
+            .get("round_state")
+            .and_then(|v| v.as_str())
+            .unwrap_or("countdown");
+
+        // Only bootstrap into an active match (not waiting/idle noise)
+        if !matches!(
+            round_state,
+            "countdown" | "playing" | "round_end" | "match_end"
+        ) {
+            return;
+        }
+
+        if let Ok(mut net) = shared.network_manager.lock() {
+            net.match_started = true;
+            net.searching = false;
+            net.local_player_id = 1;
+            net.is_host = false;
+            net.remote_steam_id = Some(from);
+            net.connected = true;
+            net.peer_start_ack = true;
+            net.status = "Joined match (state sync) — you are Player 2".into();
+        }
+
+        let _ = app.emit(
+            "match_found",
+            serde_json::json!({
+                "player_id": 1,
+                "is_host": false,
+                "countdown_timer": countdown,
+                "round_state": round_state,
+                "max_rounds": 5,
+            }),
+        );
+        let _ = app.emit("steam_status", "Match starting — you are Player 2");
+        self.send_event(SteamId::from_raw(from), &NetworkEvent::GameStartAck);
     }
 
     /// Solo queue re-scan: re-tag lobby + merge into another waiting lobby.
@@ -1195,6 +1323,19 @@ impl SteamRuntime {
                 c if c == CHANNEL_STATE => {
                     // Client only: forward host snapshot to UI (no local sim merge)
                     if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&data) {
+                        // P2 often gets STATE before GameStart — bootstrap into match
+                        let should_bootstrap = shared
+                            .network_manager
+                            .lock()
+                            .map(|n| {
+                                !n.is_host
+                                    && !n.match_started
+                                    && (n.searching || n.lobby_id.is_some())
+                            })
+                            .unwrap_or(false);
+                        if should_bootstrap {
+                            self.client_bootstrap_from_state(shared, app, from, &value);
+                        }
                         let _ = app.emit("game_state", value);
                     }
                 }
@@ -1207,18 +1348,48 @@ impl SteamRuntime {
                                 skin,
                                 hat,
                             } => {
+                                let i_am_host = shared
+                                    .network_manager
+                                    .lock()
+                                    .map(|n| n.is_host)
+                                    .unwrap_or(false);
                                 if let Ok(mut net) = shared.network_manager.lock() {
                                     net.remote_steam_id = Some(from);
                                     net.connected = true;
-                                    net.peer_primary = primary.clone();
-                                    net.peer_skin = skin.clone();
-                                    net.peer_hat = if hat.is_empty() {
-                                        "none".into()
+                                    // Host stores client loadout; client stores host loadout
+                                    if i_am_host && player_id == 1 {
+                                        net.peer_primary = primary.clone();
+                                        net.peer_skin = skin.clone();
+                                        net.peer_hat = if hat.is_empty() {
+                                            "none".into()
+                                        } else {
+                                            hat.clone()
+                                        };
+                                        net.peer_hello = true;
+                                        net.status = "Opponent ready — preparing Best of 5…".into();
+                                    } else if !i_am_host && player_id == 0 {
+                                        net.peer_primary = primary.clone();
+                                        net.peer_skin = skin.clone();
+                                        net.peer_hat = if hat.is_empty() {
+                                            "none".into()
+                                        } else {
+                                            hat.clone()
+                                        };
+                                        net.status =
+                                            "Host connected — waiting for match start…".into();
                                     } else {
-                                        hat.clone()
-                                    };
-                                    net.peer_hello = true;
-                                    net.status = format!("Opponent connected ({from})");
+                                        // Fallback: still record peer loadout
+                                        net.peer_primary = primary.clone();
+                                        net.peer_skin = skin.clone();
+                                        net.peer_hat = if hat.is_empty() {
+                                            "none".into()
+                                        } else {
+                                            hat.clone()
+                                        };
+                                        if i_am_host {
+                                            net.peer_hello = true;
+                                        }
+                                    }
                                 }
                                 if let Ok(mut game) = shared.game_state.lock() {
                                     if !game.players.iter().any(|p| p.id == player_id) {
@@ -1229,7 +1400,25 @@ impl SteamRuntime {
                                     let hat_id = if hat.is_empty() { "none" } else { &hat };
                                     game.set_player_loadout(player_id, wt, &skin, hat_id);
                                 }
-                                let _ = app.emit("steam_status", "Opponent found — preparing…");
+                                if i_am_host {
+                                    let _ = app.emit(
+                                        "steam_status",
+                                        "Opponent ready — waiting to start…",
+                                    );
+                                    let _ = app.emit(
+                                        "lobby_roster",
+                                        serde_json::json!({
+                                            "members": 2,
+                                            "ready": true,
+                                            "max_rounds": 5,
+                                        }),
+                                    );
+                                } else {
+                                    let _ = app.emit(
+                                        "steam_status",
+                                        "Host found — waiting for start…",
+                                    );
+                                }
                             }
                             NetworkEvent::GameStartAck => {
                                 if let Ok(mut net) = shared.network_manager.lock() {
@@ -1332,12 +1521,16 @@ impl SteamRuntime {
                                             "is_host": false,
                                             "countdown_timer": countdown_timer,
                                             "round_state": "countdown",
+                                            "max_rounds": 5,
                                         }),
                                     );
                                 }
-                                let _ = app.emit("steam_status", "Match starting");
+                                let _ = app.emit(
+                                    "steam_status",
+                                    "Match starting — you are Player 2 · Best of 5",
+                                );
 
-                                // Ack so host stops retransmitting
+                                // Ack so host stops retransmitting (always — not only first)
                                 self.send_event(
                                     SteamId::from_raw(from),
                                     &NetworkEvent::GameStartAck,

@@ -7,6 +7,8 @@ import {
   getPlayer2Input,
   getOnlineInput,
   isPausePressed,
+  pollGamepads,
+  rumble,
 } from './input';
 import {
   initRenderer,
@@ -24,10 +26,13 @@ import {
   showCountdown,
   hideCountdown,
   showRoundEnd,
+  hideEndOverlay,
   showPause,
+  hidePause,
   isPaused,
   updateLobbyStatus,
   updateLobbyInfo,
+  updateLobbyRoster,
   clearQueueLog,
   appendQueueLog,
   renderUpdateOverlay,
@@ -237,7 +242,19 @@ function setupEvents(): void {
 
   if (tauriListen) {
     tauriListen('game_state', (payload) => {
-      handleGameStateUpdate(payload.payload as GameState);
+      const state = payload.payload as GameState;
+      // Safety net: P2 receives host snapshots before match_found
+      maybeEnterOnlineMatchFromState(state);
+      handleGameStateUpdate(state);
+    });
+
+    tauriListen('lobby_roster', (payload) => {
+      const data = payload.payload as {
+        members?: number;
+        ready?: boolean;
+        max_rounds?: number;
+      };
+      updateLobbyRoster(data.members ?? 1, !!data.ready, data.max_rounds ?? 5);
     });
 
     tauriListen('weapon_fired', (payload) => {
@@ -278,8 +295,13 @@ function setupEvents(): void {
         isCrit ? '#ffe08a' : targetId === 0 ? '#e07a5f' : '#5aa8ff',
         isCrit
       );
-      if (iAmVictim) setScreenShake(0.35 + Math.min(0.4, dmg / 100));
-      else if (iAmAttacker) setScreenShake(0.18 + (isCrit ? 0.15 : 0));
+      if (iAmVictim) {
+        setScreenShake(0.35 + Math.min(0.4, dmg / 100));
+        rumble(0, 80, 0.35, 0.65);
+      } else if (iAmAttacker) {
+        setScreenShake(0.18 + (isCrit ? 0.15 : 0));
+        if (isCrit) rumble(0, 40, 0.15, 0.35);
+      }
     });
 
     tauriListen('player_died', (payload) => {
@@ -620,7 +642,9 @@ async function handleFindMatch(
   clearQueueLog();
   updateLobbyInfo('Searching for opponent…');
   updateLobbyStatus('Connecting to Steam matchmaking…');
+  updateLobbyRoster(0, false, 5);
   appendQueueLog('Steam matchmaking started', 'info');
+  appendQueueLog('Format: Best of 5 (first to 3) · wait for 2 players', 'info');
   setCameraFollow(localPlayerId);
 
   const inv = document.getElementById('btnInviteFriends') as HTMLButtonElement | null;
@@ -721,6 +745,42 @@ function handleBackToMenu(): void {
   }
 }
 
+/** If online queue is open and host state arrives, force P2 into the game screen. */
+function maybeEnterOnlineMatchFromState(state: GameState): void {
+  if (isGameRunning || isLocalPlay || !isOnline) return;
+  const rs = String(state.round_state || '');
+  if (!['countdown', 'playing', 'round_end', 'match_end'].includes(rs)) return;
+  if (!state.players || state.players.length < 1) return;
+
+  localPlayerId = 1;
+  isBotMatch = false;
+  localEngine = null;
+  lastRoundState = '';
+  resetOnlinePrediction();
+  resetCombatFx();
+  setParticles([]);
+  setScreenShake(0);
+  setCameraFollow(localPlayerId);
+  updateLobbyInfo('Match found — joining as Player 2');
+  updateLobbyStatus('You are Player 2 · Best of 5');
+  appendQueueLog('Entered match via host state sync (P2)', 'ok');
+  switchScreen('game');
+  if (rs === 'countdown' || (state.countdown_timer ?? 0) > 0) {
+    showCountdown(state.countdown_timer ?? 3);
+    lastRoundState = 'countdown';
+  }
+  isGameRunning = true;
+  void ensureFullscreen(true);
+  fitAppToViewport();
+  if (pendingOnlineLoadout && tauriInvoke) {
+    void tauriInvoke('set_loadout', {
+      primary: pendingOnlineLoadout.primary,
+      skin: pendingOnlineLoadout.skin,
+      hat: pendingOnlineLoadout.hat,
+    }).catch(() => undefined);
+  }
+}
+
 function handleGameStateUpdate(state: GameState): void {
   // Normalize missing fields from older / partial snapshots
   if (state.zone_radius === undefined) {
@@ -729,6 +789,9 @@ function handleGameStateUpdate(state: GameState): void {
     state.zone_radius = 380;
     state.zone_target_radius = 380;
     state.match_time = 0;
+  }
+  if (state.max_rounds === undefined || state.max_rounds < 1) {
+    state.max_rounds = 5;
   }
   if (!state.grenades) state.grenades = [];
   if (!state.players) state.players = [];
@@ -761,20 +824,32 @@ function handleGameStateUpdate(state: GameState): void {
 function onRoundStateChanged(state: GameState): void {
   switch (state.round_state) {
     case 'countdown':
+      hideEndOverlay();
       showCountdown(state.countdown_timer);
       break;
     case 'playing':
+      hideEndOverlay();
       hideCountdown();
       soundSystem.play('round_start');
       break;
     case 'round_end':
       if (state.winner_id !== null && state.winner_id !== undefined) {
+        const firstTo = Math.ceil((state.max_rounds + 1) / 2);
         showRoundEnd(state.winner_id, state.score, false);
+        // Clarify series score for best-of
+        const msg = document.getElementById('endMessage');
+        if (msg) {
+          msg.textContent = `Player ${state.winner_id + 1} takes the round  ·  ${state.score[0]} — ${state.score[1]}  ·  First to ${firstTo}`;
+        }
       }
       break;
     case 'match_end':
       if (state.winner_id !== null && state.winner_id !== undefined) {
         showRoundEnd(state.winner_id, state.score, true);
+        const msg = document.getElementById('endMessage');
+        if (msg) {
+          msg.textContent = `Player ${state.winner_id + 1} wins Best of ${state.max_rounds}  ·  ${state.score[0]} — ${state.score[1]}`;
+        }
         grantMatchDustReward(state);
       }
       break;
@@ -849,10 +924,15 @@ function gameLoop(timestamp: number): void {
   const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
 
+  // Always poll pads so connect events / menu stay live
+  pollGamepads();
+
   if (isGameRunning) {
     if (isPausePressed()) {
       if (!pausePressed) {
-        showPause();
+        // Start / Esc toggles pause
+        if (isPaused()) hidePause();
+        else showPause();
         pausePressed = true;
       }
     } else {

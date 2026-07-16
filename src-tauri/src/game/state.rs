@@ -184,6 +184,10 @@ impl GameState {
     }
 
     pub fn next_round(&mut self) {
+        // Never advance after series is decided (Best of max_rounds / first to ceil((n+1)/2))
+        if self.round_state == RoundState::MatchEnd {
+            return;
+        }
         self.current_round += 1;
         self.start_countdown();
     }
@@ -341,8 +345,12 @@ impl GameState {
             RoundState::RoundEnd => {
                 self.round_end_timer -= delta_time;
                 if self.round_end_timer <= 0.0 {
+                    // Intermediate rounds only — MatchEnd stays put
                     self.next_round();
                 }
+            }
+            RoundState::MatchEnd | RoundState::WaitingForPlayers => {
+                // Idle: host waits for both players before countdown
             }
             RoundState::Playing => {
                 self.match_time += delta_time;
@@ -451,7 +459,6 @@ impl GameState {
                     }
                 }
             }
-            _ => {}
         }
 
         events

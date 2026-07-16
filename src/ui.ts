@@ -22,6 +22,11 @@ import {
   hatRarityColor,
 } from './hats';
 import { drawWeaponModel } from './renderer';
+import {
+  consumeMenuNav,
+  getConnectedPadCount,
+  pollGamepads,
+} from './input';
 
 const screens: Partial<Record<ScreenId, HTMLElement>> = {};
 let activeScreen: ScreenId = 'start';
@@ -31,6 +36,10 @@ let selectedSkins: [SkinId, SkinId] = loadStoredSkins();
 let selectedHats: [HatId, HatId] = loadStoredHats();
 let ownedHats = loadOwnedHats();
 let loadoutMode: 'local' | 'online' | 'bot' = 'local';
+
+/** Gamepad/keyboard focus index into current focusables list */
+let menuFocusIdx = 0;
+let menuNavStarted = false;
 
 const WEAPON_META: Record<
   WeaponType,
@@ -122,6 +131,152 @@ export function initUI(): void {
   buildSkinPickers();
   buildHatPickers();
   refreshDustBalance();
+  startMenuNavLoop();
+  updatePadBadge();
+  window.addEventListener('input:gamepad', () => updatePadBadge());
+}
+
+function updatePadBadge(): void {
+  const n = getConnectedPadCount();
+  const el = document.getElementById('padBadge');
+  if (el) {
+    el.textContent = n > 0 ? `Pad ×${n}` : 'Pad —';
+    el.classList.toggle('on', n > 0);
+    el.title =
+      n > 0
+        ? `${n} controller(s) connected — L stick move · R stick aim · RT fire`
+        : 'Connect a controller (Xbox / DualSense / Switch Pro)';
+  }
+}
+
+/** Visible focusable buttons in the active menu layer (overlays first). */
+function getMenuFocusables(): HTMLElement[] {
+  const roots: HTMLElement[] = [];
+  const controls = document.getElementById('controlsOverlay');
+  const pause = document.getElementById('pauseOverlay');
+  const end = document.getElementById('endOverlay');
+  const update = document.getElementById('updateOverlay');
+
+  if (controls?.classList.contains('active')) roots.push(controls);
+  else if (update?.classList.contains('active')) roots.push(update);
+  else if (pause?.classList.contains('active')) roots.push(pause);
+  else if (end?.classList.contains('active')) roots.push(end);
+  else if (activeScreen === 'start' && screens.start) roots.push(screens.start);
+  else if (activeScreen === 'lobby' && screens.lobby) roots.push(screens.lobby);
+  else if (activeScreen === 'loadout' && screens.loadout) roots.push(screens.loadout);
+
+  const out: HTMLElement[] = [];
+  for (const root of roots) {
+    const nodes = root.querySelectorAll<HTMLElement>(
+      'button.menu-btn:not([disabled]), button.weapon-card, button.skin-swatch:not(.locked)'
+    );
+    for (const n of nodes) {
+      if (n.offsetParent === null && n.style.display === 'none') continue;
+      // Hide check: display none on ancestors handled by offsetParent for most cases
+      if ((n as HTMLButtonElement).disabled) continue;
+      const style = window.getComputedStyle(n);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+function applyMenuFocus(list: HTMLElement[], idx: number): void {
+  list.forEach((el) => el.classList.remove('pad-focus'));
+  if (list.length === 0) return;
+  menuFocusIdx = ((idx % list.length) + list.length) % list.length;
+  const el = list[menuFocusIdx];
+  el.classList.add('pad-focus');
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    el.focus();
+  }
+  el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function clickFocused(): void {
+  const list = getMenuFocusables();
+  if (list.length === 0) return;
+  if (menuFocusIdx < 0 || menuFocusIdx >= list.length) menuFocusIdx = 0;
+  const el = list[menuFocusIdx];
+  el.classList.add('pad-focus');
+  el.click();
+}
+
+function startMenuNavLoop(): void {
+  if (menuNavStarted) return;
+  menuNavStarted = true;
+
+  const tick = (): void => {
+    // Don't steal input during live match unless pause/end overlay is open
+    const pauseOpen = document.getElementById('pauseOverlay')?.classList.contains('active');
+    const endOpen = document.getElementById('endOverlay')?.classList.contains('active');
+    const controlsOpen = document.getElementById('controlsOverlay')?.classList.contains('active');
+    const updateOpen = document.getElementById('updateOverlay')?.classList.contains('active');
+    const inMenu =
+      activeScreen !== 'game' || !!pauseOpen || !!endOpen || !!controlsOpen || !!updateOpen;
+
+    pollGamepads();
+    updatePadBadge();
+
+    if (inMenu) {
+      const nav = consumeMenuNav();
+      const list = getMenuFocusables();
+
+      if (list.length > 0) {
+        // Ensure something is focused when pad is present
+        if (nav.hasPad && !list.some((el) => el.classList.contains('pad-focus'))) {
+          applyMenuFocus(list, menuFocusIdx);
+        }
+
+        if (nav.down || nav.right) {
+          applyMenuFocus(list, menuFocusIdx + 1);
+        } else if (nav.up || nav.left) {
+          applyMenuFocus(list, menuFocusIdx - 1);
+        }
+
+        if (nav.confirm) {
+          clickFocused();
+        }
+      }
+
+      if (nav.back) {
+        handleMenuBack();
+      }
+    }
+
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function handleMenuBack(): void {
+  const controls = document.getElementById('controlsOverlay');
+  if (controls?.classList.contains('active')) {
+    controls.classList.remove('active');
+    return;
+  }
+  if (document.getElementById('updateOverlay')?.classList.contains('active')) {
+    document.getElementById('btnUpdateLater')?.click();
+    return;
+  }
+  if (isPaused()) {
+    hidePause();
+    return;
+  }
+  if (document.getElementById('endOverlay')?.classList.contains('active')) {
+    document.getElementById('btnBackToMenu')?.click();
+    return;
+  }
+  if (activeScreen === 'loadout') {
+    switchScreen('start');
+    return;
+  }
+  if (activeScreen === 'lobby') {
+    document.getElementById('btnLeaveLobby')?.click();
+  }
 }
 
 function showLoadout(bothPlayers: boolean): void {
@@ -343,10 +498,20 @@ export function switchScreen(screen: ScreenId): void {
   document.getElementById('pauseOverlay')!.classList.remove('active');
 
   activeScreen = screen;
+  menuFocusIdx = 0;
+  document.querySelectorAll('.pad-focus').forEach((el) => el.classList.remove('pad-focus'));
   if (screen === 'start') screens.start?.classList.add('active');
   if (screen === 'lobby') screens.lobby?.classList.add('active');
   if (screen === 'loadout') screens.loadout?.classList.add('active');
   if (screen === 'game') document.getElementById('hud')!.classList.add('active');
+
+  // Focus first action when entering menus with a pad
+  if (screen !== 'game' && getConnectedPadCount() > 0) {
+    requestAnimationFrame(() => {
+      const list = getMenuFocusables();
+      if (list.length) applyMenuFocus(list, 0);
+    });
+  }
 }
 
 const DASH_COOLDOWN_MAX = 2.2; // matches engine dashCooldown after dash
@@ -521,6 +686,41 @@ export function updateLobbyStatus(text: string): void {
 
 export function updateLobbyInfo(text: string): void {
   setText('lobbyInfo', text);
+}
+
+/** Waiting-for-player slots on matchmaking screen. */
+export function updateLobbyRoster(members: number, ready: boolean, maxRounds = 5): void {
+  const m = Math.max(0, Math.min(2, members | 0));
+  const fill = document.getElementById('lobbySlots');
+  if (fill) {
+    fill.innerHTML = '';
+    for (let i = 0; i < 2; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'lobby-slot' + (i < m ? ' filled' : ' empty');
+      if (i < m && ready) slot.classList.add('ready');
+      slot.innerHTML = `<span class="ls-label">P${i + 1}</span><span class="ls-state">${
+        i < m ? (ready || i === 0 ? 'Ready' : 'Joined') : 'Waiting…'
+      }</span>`;
+      fill.appendChild(slot);
+    }
+  }
+  const meta = document.getElementById('lobbyMeta');
+  if (meta) {
+    meta.textContent =
+      m < 2
+        ? `Waiting for player… (${m}/2) · Best of ${maxRounds}`
+        : ready
+          ? `Both players ready · Best of ${maxRounds} · starting…`
+          : `Opponent joined (${m}/2) · syncing · Best of ${maxRounds}`;
+  }
+  const info = document.getElementById('lobbyInfo');
+  if (info && m < 2) {
+    info.textContent = 'Waiting for player to join…';
+  } else if (info && m >= 2 && !ready) {
+    info.textContent = 'Opponent found — connecting…';
+  } else if (info && m >= 2 && ready) {
+    info.textContent = 'Both ready — match starting…';
+  }
 }
 
 export type QueueLogLevel = 'info' | 'ok' | 'warn' | 'err';
