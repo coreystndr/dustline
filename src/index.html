@@ -3,32 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=1280, height=720" />
-  <title>DUSTLINE — 1v1</title>
+  <title>DUSTLINE</title>
   <style>
-    /* Dustline UI — dusk island, clay accent, flat panels. No glass candy, no pill soup. */
+    /*
+      DUSTLINE UI — field briefing board.
+      Hard edges, short palette, no glass, no pills, no glow soup.
+    */
     :root {
-      --ink: #0c1012;
-      --paper: #e8e2d6;
-      --sand: #c9b896;
-      --clay: #d4622e;
-      --clay-deep: #9a3f16;
-      --blue: #3a7ab8;
-      --blue-deep: #1e4a78;
-      --sea: #1e4a55;
-      --sea-deep: #0a1418;
-      --moss: #4a7a42;
-      --muted: #7a7368;
-      --danger: #c0392b;
-      --ok: #6aaa4a;
-      --purple: #9b7ad4;
-      --glass: rgba(12, 16, 18, 0.88);
-      --glass-lite: rgba(18, 22, 26, 0.9);
-      --line: rgba(232, 226, 214, 0.1);
-      --line-strong: rgba(232, 226, 214, 0.18);
-      --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-      --radius: 3px;
+      --bg: #0a0c0b;
+      --panel: #121614;
+      --panel-2: #181c19;
+      --ink: #d6d0c2;
+      --mute: #7a7568;
+      --faint: #3a3e38;
+      --line: #2a302c;
+      --line-hi: #3e463f;
+      --rust: #c45424;
+      --rust-dim: #8a3a18;
+      --p1: #c45424;
+      --p2: #4a7a98;
+      --ok: #5a8a48;
+      --warn: #b88830;
+      --bad: #a83828;
       --font: "Segoe UI", system-ui, sans-serif;
-      --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -36,13 +34,12 @@
     html, body {
       width: 100%;
       height: 100%;
-      margin: 0;
       overflow: hidden;
-      background: #05080a;
+      background: #050605;
     }
 
     body {
-      color: var(--paper);
+      color: var(--ink);
       font-family: var(--font);
       display: flex;
       align-items: center;
@@ -55,10 +52,10 @@
       height: 720px;
       position: relative;
       overflow: hidden;
-      background: #0a1216;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+      background: var(--bg);
       flex-shrink: 0;
       transform-origin: center center;
+      box-shadow: 0 0 0 1px #1a1e1a, 0 30px 80px rgba(0,0,0,0.7);
     }
 
     #gameCanvas {
@@ -68,861 +65,604 @@
       cursor: crosshair;
     }
 
-    /* —— Screens —— */
+    /* ── Screens ── */
     .screen {
       position: absolute;
       inset: 0;
       display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
       z-index: 5;
       overflow: hidden;
     }
-    .screen.active { display: flex; }
+    .screen.active { display: flex; flex-direction: column; }
 
     .screen-bg {
       position: absolute;
       inset: 0;
-      pointer-events: none;
       background:
-        linear-gradient(180deg, #101f24 0%, #0a1216 55%, #070b0d 100%);
+        linear-gradient(180deg, #0e1210 0%, var(--bg) 100%);
+      pointer-events: none;
     }
-
-    .screen-bg::after {
+    .screen-bg::before {
       content: "";
       position: absolute;
       inset: 0;
-      background:
-        radial-gradient(ellipse 50% 40% at 50% 0%, rgba(212, 98, 46, 0.08), transparent 60%),
-        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(0, 0, 0, 0.35), transparent 70%);
-    }
-
-    .screen-frame {
-      position: absolute;
-      inset: 16px;
-      border: 1px solid var(--line);
-      border-radius: 2px;
+      opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       pointer-events: none;
-    }
-    .screen-frame::before,
-    .screen-frame::after {
-      content: "";
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      border: 1px solid rgba(212, 98, 46, 0.5);
-    }
-    .screen-frame::before {
-      top: -1px; left: -1px;
-      border-right: none; border-bottom: none;
-    }
-    .screen-frame::after {
-      bottom: -1px; right: -1px;
-      border-left: none; border-top: none;
     }
 
     .screen-content {
       position: relative;
       z-index: 1;
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      max-width: 920px;
+      justify-content: center;
+      padding: 28px 36px;
       width: 100%;
-      padding: 24px;
     }
 
-    /* —— Main menu (start) —— */
-    #startScreen {
-      align-items: stretch;
-      justify-content: stretch;
+    /* ── Buttons ── */
+    .menu-btn {
+      appearance: none;
+      border: 1px solid var(--line-hi);
+      background: var(--panel-2);
+      color: var(--ink);
+      font: 600 13px/1 var(--font);
+      padding: 12px 14px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.08s, border-color 0.08s, color 0.08s;
     }
+    .menu-btn .btn-hint {
+      float: right;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--mute);
+      margin-top: 1px;
+    }
+    .menu-btn:hover {
+      background: #1e2420;
+      border-color: #5a5248;
+      color: #f0ebe0;
+    }
+    .menu-btn:hover .btn-hint { color: #a09888; }
+    .menu-btn:active { background: #161a17; }
+
+    .menu-btn.primary {
+      background: var(--rust);
+      border-color: #d46a38;
+      color: #140804;
+      font-weight: 700;
+    }
+    .menu-btn.primary:hover {
+      background: #d4622e;
+      border-color: #e88850;
+      color: #0a0402;
+    }
+    .menu-btn.primary .btn-hint { color: rgba(20, 8, 4, 0.55); }
+
+    .menu-btn.ghost {
+      background: transparent;
+      border-color: var(--line);
+      color: var(--mute);
+    }
+    .menu-btn.ghost:hover {
+      border-color: var(--line-hi);
+      color: var(--ink);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .menu-btn.pad-focus,
+    .weapon-card.pad-focus,
+    .skin-swatch.pad-focus {
+      outline: 1px solid var(--rust);
+      outline-offset: 1px;
+      border-color: var(--rust) !important;
+    }
+
+    /* ── Start menu ── */
+    #startScreen { align-items: stretch; }
     #startScreen .screen-content {
-      max-width: none;
-      width: 100%;
-      height: 100%;
       padding: 0;
       display: block;
+      height: 100%;
     }
 
     .mm {
-      position: relative;
       width: 100%;
       height: 100%;
-      overflow: hidden;
-      background: #070b0d;
-    }
-
-    /* Horizon field — painted, not generic mesh */
-    .mm-field {
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(180deg,
-          #0e1c22 0%,
-          #132a32 28%,
-          #1a3a3f 48%,
-          #243528 58%,
-          #1a2418 68%,
-          #0d1210 100%);
-    }
-    .mm-field::before {
-      content: "";
-      position: absolute;
-      left: -10%;
-      right: -10%;
-      top: 42%;
-      height: 38%;
-      background:
-        radial-gradient(ellipse 55% 80% at 50% 0%, rgba(212, 98, 46, 0.14), transparent 70%),
-        radial-gradient(ellipse 90% 60% at 50% 100%, rgba(0, 0, 0, 0.55), transparent 70%);
-      pointer-events: none;
-    }
-    .mm-haze {
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(ellipse 120% 40% at 50% 100%, rgba(201, 184, 150, 0.07), transparent 55%),
-        radial-gradient(circle at 18% 30%, rgba(47, 127, 212, 0.06), transparent 28%);
-      pointer-events: none;
-    }
-    .mm-grain {
-      position: absolute;
-      inset: 0;
-      opacity: 0.055;
-      pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    }
-
-    .mm-island {
-      position: absolute;
-      left: 50%;
-      bottom: 8%;
-      width: min(920px, 92%);
-      height: 48%;
-      transform: translateX(-50%);
-      pointer-events: none;
-      opacity: 0.92;
-    }
-    .mm-island svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-      filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
-    }
-
-    .mm-storm {
-      position: absolute;
-      left: 50%;
-      top: 46%;
-      width: 520px;
-      height: 280px;
-      transform: translate(-50%, -50%);
-      border: 1px solid rgba(212, 98, 46, 0.22);
-      border-radius: 50%;
-      pointer-events: none;
-      box-shadow:
-        inset 0 0 60px rgba(212, 98, 46, 0.06),
-        0 0 0 1px rgba(0, 0, 0, 0.2);
-      animation: mm-storm 7s ease-in-out infinite;
-    }
-    .mm-storm::after {
-      content: "";
-      position: absolute;
-      inset: 18px;
-      border: 1px dashed rgba(201, 184, 150, 0.14);
-      border-radius: 50%;
-    }
-    @keyframes mm-storm {
-      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
-      50% { transform: translate(-50%, -50%) scale(1.035); opacity: 1; }
-    }
-
-    .mm-vignette {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(ellipse 70% 65% at 50% 45%, transparent 30%, rgba(0, 0, 0, 0.55) 100%),
-        linear-gradient(90deg, rgba(0, 0, 0, 0.45) 0%, transparent 22%, transparent 78%, rgba(0, 0, 0, 0.45) 100%);
-    }
-
-    /* Layout */
-    .mm-ui {
-      position: relative;
-      z-index: 2;
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 0;
-      width: 100%;
-      height: 100%;
-      padding: 36px 44px 32px;
+      grid-template-columns: 1fr 320px;
+      position: relative;
+      background: var(--bg);
     }
 
-    .mm-left {
+    .mm-main {
+      position: relative;
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      padding: 0 48px 28px 8px;
-      max-width: 560px;
+      padding: 40px 48px 36px;
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(165deg, #101612 0%, #0a0c0b 55%, #080a09 100%);
+    }
+    .mm-main::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 3px;
+      background: var(--rust);
+      opacity: 0.85;
     }
 
-    .mm-eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
+    .mm-kicker {
       font-family: var(--mono);
       font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: none;
-      color: var(--clay);
-      margin-bottom: 14px;
-    }
-    .mm-eyebrow i {
-      display: block;
-      width: 22px;
-      height: 2px;
-      background: var(--clay);
-      border-radius: 1px;
+      color: var(--rust);
+      margin-bottom: 10px;
     }
 
     .mm-title {
-      font-size: 64px;
+      font-size: 56px;
       font-weight: 800;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.04em;
       line-height: 0.95;
-      color: var(--paper);
-      margin: 0 0 14px;
-      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+      color: #ebe6da;
+      margin-bottom: 12px;
     }
 
     .mm-lede {
-      font-size: 15px;
-      line-height: 1.45;
-      color: var(--sand);
+      font-size: 14px;
+      line-height: 1.4;
+      color: var(--mute);
+      max-width: 36ch;
+      margin-bottom: 22px;
       font-weight: 500;
-      max-width: 34ch;
-      margin: 0 0 22px;
     }
 
-    .mm-stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1px;
-      background: rgba(242, 235, 224, 0.08);
-      border: 1px solid rgba(242, 235, 224, 0.1);
-      margin-bottom: 22px;
-      max-width: 360px;
+    .mm-facts {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--line);
+      width: fit-content;
+      margin-bottom: 20px;
     }
-    .mm-stat {
-      background: rgba(8, 12, 14, 0.72);
-      padding: 12px 14px;
+    .mm-fact {
+      padding: 10px 16px;
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      min-width: 88px;
     }
-    .mm-stat b {
+    .mm-fact:last-child { border-right: none; }
+    .mm-fact b {
       display: block;
       font-family: var(--mono);
       font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.04em;
-      color: var(--paper);
-      margin-bottom: 3px;
+      color: var(--ink);
+      margin-bottom: 2px;
     }
-    .mm-stat span {
+    .mm-fact span {
       font-size: 10px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--muted);
+      color: var(--mute);
       font-weight: 600;
     }
 
     .mm-keys {
       font-family: var(--mono);
       font-size: 11px;
-      letter-spacing: 0.04em;
-      color: rgba(201, 184, 150, 0.72);
-      line-height: 1.55;
+      color: var(--mute);
+      line-height: 1.6;
     }
     .mm-keys kbd {
       display: inline-block;
       font: inherit;
       font-weight: 700;
-      color: var(--paper);
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(242, 235, 224, 0.12);
-      padding: 1px 6px;
-      border-radius: 3px;
-      margin-right: 2px;
+      color: var(--ink);
+      border: 1px solid var(--line-hi);
+      background: var(--panel);
+      padding: 0 5px;
+      margin-right: 1px;
     }
+
     .pad-badge {
       display: inline-block;
       font-family: var(--mono);
       font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(201, 184, 150, 0.55);
-      border: 1px solid rgba(242, 235, 224, 0.12);
-      padding: 1px 7px;
-      border-radius: 3px;
+      color: var(--mute);
+      border: 1px solid var(--line);
+      padding: 1px 6px;
       margin-left: 4px;
       vertical-align: middle;
     }
     .pad-badge.on {
-      color: #c8e6a0;
-      border-color: rgba(160, 200, 100, 0.45);
-      background: rgba(80, 120, 40, 0.2);
+      color: var(--ok);
+      border-color: #3a5a30;
+      background: #142014;
     }
 
-    /* Gamepad / keyboard menu focus ring */
-    .menu-btn.pad-focus,
-    .weapon-card.pad-focus,
-    .skin-swatch.pad-focus {
-      outline: 2px solid rgba(232, 180, 100, 0.95);
-      outline-offset: 2px;
-      box-shadow: 0 0 0 4px rgba(232, 180, 100, 0.18);
-    }
-    .menu-btn.pad-focus {
-      background: rgba(232, 180, 100, 0.12);
-      border-color: rgba(232, 180, 100, 0.45);
-    }
-
-    /* Right action column */
-    .mm-right {
+    .mm-side {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: stretch;
-      padding: 0 8px 0 24px;
+      background: var(--panel);
+      padding: 0;
     }
 
-    .mm-panel {
-      position: relative;
-      background: rgba(10, 14, 16, 0.82);
-      border: 1px solid rgba(242, 235, 224, 0.1);
-      box-shadow:
-        0 1px 0 rgba(255, 255, 255, 0.04) inset,
-        0 24px 60px rgba(0, 0, 0, 0.5);
-      padding: 22px 20px 18px;
+    .mm-side-head {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
     }
-    .mm-panel::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, var(--clay-deep), var(--clay) 40%, transparent 90%);
-    }
-    /* corner ticks */
-    .mm-panel::after {
-      content: "";
-      position: absolute;
-      right: 10px;
-      bottom: 10px;
-      width: 10px;
-      height: 10px;
-      border-right: 1px solid rgba(212, 98, 46, 0.55);
-      border-bottom: 1px solid rgba(212, 98, 46, 0.55);
-      pointer-events: none;
-    }
-
-    .mm-panel-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      margin-bottom: 16px;
-      padding: 0 2px 12px;
-      border-bottom: 1px solid rgba(242, 235, 224, 0.08);
-    }
-    .mm-panel-head strong {
+    .mm-side-head b {
+      display: block;
       font-size: 12px;
-      letter-spacing: 0.04em;
-      text-transform: none;
-      color: var(--paper);
       font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 3px;
     }
-    .mm-panel-head span {
+    .mm-side-head span {
       font-family: var(--mono);
       font-size: 10px;
-      color: var(--muted);
-      letter-spacing: 0.08em;
+      color: var(--mute);
+    }
+
+    .mm-loadout-sum {
+      margin: 0 12px 0;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      cursor: default;
+    }
+    .mm-loadout-sum-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .mm-ls-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--mute);
+      min-width: 22px;
+    }
+    .mm-ls-val {
+      font-weight: 600;
+      color: var(--ink);
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mm-loadout-sum-dust {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--warn);
+    }
+    .mm-loadout-sum-dust span:last-child {
+      color: var(--ink);
+      font-size: 12px;
     }
 
     .mm-actions {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 0;
+      padding: 12px;
+      flex: 1;
     }
-
     .mm-actions .menu-btn {
       width: 100%;
+      border-radius: 0;
+      margin-bottom: 6px;
     }
-
-    .mm-divider {
-      height: 1px;
-      background: rgba(242, 235, 224, 0.08);
-      margin: 12px 0 10px;
-    }
+    .mm-actions .menu-btn:last-child { margin-bottom: 0; }
 
     .mm-utils {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px;
+      padding: 0 12px 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      margin: 0 0 0;
     }
     .mm-utils .menu-btn {
-      padding: 11px 12px;
+      padding: 10px 10px;
       font-size: 11px;
-      letter-spacing: 0.1em;
       text-align: center;
-      background: rgba(0, 0, 0, 0.28);
-      box-shadow: none;
+      background: var(--bg);
     }
-    .mm-utils .menu-btn .btn-hint {
-      display: none;
-    }
+    .mm-utils .menu-btn .btn-hint { display: none; }
     .mm-utils .menu-btn.ghost {
       grid-column: 1 / -1;
-      margin-top: 2px;
-      color: var(--muted);
-      border-style: dashed;
     }
 
     .mm-foot {
       position: absolute;
-      left: 44px;
-      right: 44px;
-      bottom: 14px;
-      z-index: 3;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      left: 48px;
+      bottom: 12px;
       font-family: var(--mono);
       font-size: 10px;
-      letter-spacing: 0.12em;
-      color: rgba(122, 115, 104, 0.9);
-      text-transform: uppercase;
+      color: var(--faint);
       pointer-events: none;
     }
-    .mm-foot b {
-      color: rgba(201, 184, 150, 0.75);
-      font-weight: 600;
-    }
 
-    /* Shared buttons — flat, tactical, not glass candy */
-    .menu-stack {
+    /* ── Shared headers ── */
+    .page-head {
+      width: min(920px, 100%);
       display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 300px;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
     }
-
-    .menu-btn {
-      appearance: none;
-      position: relative;
-      border: 1px solid rgba(232, 226, 214, 0.12);
-      background: rgba(14, 18, 20, 0.92);
-      color: var(--paper);
-      font: 600 13px/1.2 var(--font);
+    .page-head h2 {
+      font-size: 22px;
+      font-weight: 800;
       letter-spacing: 0.02em;
-      text-transform: none;
-      padding: 13px 15px;
-      cursor: pointer;
-      transition: background 0.12s, border-color 0.12s, color 0.12s;
-      text-align: left;
-      border-radius: var(--radius);
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+      color: #ebe6da;
+      line-height: 1.1;
     }
-
-    .menu-btn .btn-hint {
-      float: right;
+    .page-head p {
+      font-size: 12px;
+      color: var(--mute);
+      margin-top: 4px;
+      max-width: 48ch;
+      line-height: 1.35;
+    }
+    .page-kicker {
       font-family: var(--mono);
       font-size: 10px;
-      letter-spacing: 0.04em;
-      color: var(--muted);
-      font-weight: 600;
-      margin-top: 1px;
-      text-transform: none;
-    }
-
-    .menu-btn:hover {
-      background: rgba(212, 98, 46, 0.12);
-      border-color: rgba(212, 98, 46, 0.45);
-      color: #fff4ea;
-    }
-    .menu-btn:hover .btn-hint { color: rgba(255, 220, 190, 0.7); }
-    .menu-btn:active { transform: translateY(1px); }
-
-    .menu-btn.primary {
-      background: var(--clay);
-      border-color: #e07a45;
-      color: #1a0c06;
-      font-weight: 800;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2) inset;
-    }
-    .menu-btn.primary:hover {
-      background: #e07038;
-      border-color: #f0a070;
-      color: #140804;
-    }
-    .menu-btn.primary .btn-hint { color: rgba(26, 12, 6, 0.62); }
-
-    .menu-btn.ghost {
-      background: transparent;
-      border-color: rgba(232, 226, 214, 0.1);
-      color: var(--sand);
-      box-shadow: none;
-    }
-    .menu-btn.ghost:hover {
-      border-color: rgba(232, 226, 214, 0.22);
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--paper);
-    }
-
-    .brand { text-align: center; margin-bottom: 24px; }
-    .brand h1 {
-      font-size: 42px;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-      color: var(--paper);
-      text-indent: 0.16em;
-      line-height: 1;
-    }
-    .brand-tag {
-      font-size: 11px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--sand);
-      font-weight: 600;
-      margin-top: 10px;
-    }
-    .menu-foot {
-      position: absolute;
-      bottom: 28px;
-      left: 0; right: 0;
-      z-index: 2;
-      text-align: center;
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-    .chip-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin-top: 18px;
-    }
-    .chip {
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
       font-weight: 700;
-      color: var(--sand);
-      background: rgba(0, 0, 0, 0.28);
-      border: 1px solid var(--line);
-      padding: 5px 10px;
-      border-radius: 2px;
+      color: var(--rust);
+      margin-bottom: 4px;
     }
 
-    /* —— Panel card —— */
-    .panel {
-      background: var(--glass);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 22px 24px;
+    .dust-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      border: 1px solid #4a3a18;
+      background: #1a1610;
+      padding: 8px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--warn);
+      white-space: nowrap;
+    }
+    .dust-chip .dust-amt {
+      color: var(--ink);
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
     }
 
-    .section-title {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: none;
-      color: var(--sand);
-      margin-bottom: 6px;
-      text-align: left;
-      width: 100%;
-      max-width: 720px;
-    }
-    .section-title strong {
-      display: block;
-      font-size: 24px;
-      letter-spacing: 0.02em;
-      color: var(--paper);
-      margin-top: 2px;
-      font-weight: 800;
+    /* ── Loadout ── */
+    #loadoutScreen .screen-content {
+      justify-content: flex-start;
+      padding-top: 24px;
+      overflow: auto;
     }
 
-    .section-sub {
-      text-align: left;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 18px;
-      max-width: 520px;
-      width: 100%;
-      line-height: 1.45;
-    }
-
-    /* —— Loadout —— */
     .loadout-columns {
       display: flex;
-      gap: 20px;
-      align-items: stretch;
+      gap: 12px;
       justify-content: center;
       flex-wrap: wrap;
+      width: min(920px, 100%);
     }
 
     .loadout-col {
-      width: 340px;
-      background: var(--glass-lite);
+      width: 380px;
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 16px;
-      box-shadow: var(--shadow);
+      padding: 12px;
     }
 
     .loadout-col-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 12px;
-      padding-bottom: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
       border-bottom: 1px solid var(--line);
     }
-
     .loadout-col-head h3 {
-      font-size: 11px;
-      letter-spacing: 0.14em;
+      font-size: 12px;
       font-weight: 800;
+      letter-spacing: 0.06em;
     }
-    #loadoutP1 .loadout-col-head h3 { color: #e88855; }
-    #loadoutP2 .loadout-col-head h3 { color: #6aa0d4; }
+    #loadoutP1 .loadout-col-head h3 { color: var(--p1); }
+    #loadoutP2 .loadout-col-head h3 { color: var(--p2); }
 
     .loadout-badge {
+      font-family: var(--mono);
       font-size: 9px;
-      letter-spacing: 0.1em;
-      font-weight: 700;
-      text-transform: uppercase;
-      padding: 3px 8px;
-      border-radius: 999px;
+      font-weight: 600;
+      color: var(--mute);
       border: 1px solid var(--line);
-      color: var(--muted);
-    }
-    #loadoutP1 .loadout-badge {
-      color: #f08a52;
-      border-color: rgba(212, 98, 46, 0.35);
-      background: rgba(212, 98, 46, 0.1);
-    }
-    #loadoutP2 .loadout-badge {
-      color: #6aa8ef;
-      border-color: rgba(47, 127, 212, 0.35);
-      background: rgba(47, 127, 212, 0.1);
+      padding: 3px 6px;
     }
 
     .weapon-cards {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      gap: 6px;
     }
 
     .weapon-card {
       appearance: none;
       border: 1px solid var(--line);
-      background: rgba(8, 12, 14, 0.55);
-      color: var(--sand);
+      background: var(--bg);
+      color: var(--mute);
       text-align: left;
-      padding: 10px 11px 12px;
+      padding: 8px 9px 10px;
       cursor: pointer;
-      border-radius: var(--radius);
-      font: 600 11px/1.35 var(--font);
-      transition: border-color 0.12s, background 0.12s;
-      min-height: 92px;
+      font: 600 11px/1.3 var(--font);
+      min-height: 88px;
+      transition: border-color 0.08s, background 0.08s;
     }
     .weapon-card .w-preview {
       display: block;
       width: 72px;
       height: 36px;
-      margin: 0 0 4px -4px;
-      image-rendering: auto;
+      margin: 0 0 2px -2px;
       pointer-events: none;
     }
     .weapon-card .w-name {
       display: block;
-      color: var(--paper);
+      color: var(--ink);
       font-size: 13px;
-      letter-spacing: 0.02em;
       font-weight: 700;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .weapon-card .w-desc {
       display: block;
-      color: var(--muted);
       font-size: 11px;
-      letter-spacing: 0;
       font-weight: 500;
-      line-height: 1.3;
+      line-height: 1.25;
+      color: var(--mute);
     }
     .weapon-card .w-stat {
       display: block;
-      margin-top: 6px;
+      margin-top: 5px;
       font-family: var(--mono);
       font-size: 9px;
-      color: rgba(201, 184, 150, 0.65);
-      letter-spacing: 0.02em;
+      color: var(--faint);
     }
     .weapon-card:hover {
-      border-color: rgba(212, 98, 46, 0.4);
-      background: rgba(20, 16, 14, 0.7);
+      border-color: var(--line-hi);
+      background: #0e100e;
     }
     .weapon-card.selected {
-      border-color: var(--clay);
-      background: rgba(212, 98, 46, 0.12);
-      box-shadow: inset 2px 0 0 var(--clay);
-      color: var(--paper);
+      border-color: var(--p1);
+      background: #1a1410;
+      box-shadow: inset 3px 0 0 var(--p1);
+      color: var(--ink);
     }
-    .weapon-card.selected .w-desc { color: var(--sand); }
-    #loadoutP2 .weapon-card:hover { border-color: rgba(58, 111, 160, 0.45); }
+    .weapon-card.selected .w-desc { color: #a89878; }
     #loadoutP2 .weapon-card.selected {
-      border-color: var(--blue);
-      background: rgba(58, 111, 160, 0.12);
-      box-shadow: inset 2px 0 0 var(--blue);
+      border-color: var(--p2);
+      background: #101418;
+      box-shadow: inset 3px 0 0 var(--p2);
     }
 
-    .skin-picker {
-      margin-top: 12px;
-      padding-top: 10px;
+    .skin-picker, .hat-picker {
+      margin-top: 10px;
+      padding-top: 8px;
       border-top: 1px solid var(--line);
     }
     .skin-picker-label {
-      font-size: 11px;
-      letter-spacing: 0.02em;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--mute);
+      margin-bottom: 6px;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
     }
     .skin-swatches {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 4px;
     }
     .skin-swatch {
       appearance: none;
       border: 1px solid var(--line);
-      background: rgba(8, 12, 14, 0.55);
-      color: var(--sand);
-      border-radius: 6px;
-      padding: 5px 7px;
+      background: var(--bg);
+      color: var(--mute);
+      padding: 4px 6px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 5px;
       font: 700 9px/1 var(--font);
-      letter-spacing: 0.04em;
-      transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
     }
     .skin-swatch .skin-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
+      width: 9px;
+      height: 9px;
       background: var(--swatch, #666);
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.12);
+      border: 1px solid rgba(0,0,0,0.5);
       flex-shrink: 0;
     }
-    .skin-swatch .skin-name { white-space: nowrap; }
-    .skin-swatch:hover {
-      border-color: rgba(242, 235, 224, 0.28);
-    }
+    .skin-swatch:hover { border-color: var(--line-hi); color: var(--ink); }
     .skin-swatch.selected {
-      border-color: var(--rarity, var(--clay));
-      background: rgba(242, 235, 224, 0.06);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--rarity, var(--clay)) 40%, transparent);
-      color: var(--paper);
-    }
-    #loadoutP1 .skin-swatch.selected {
-      box-shadow: 0 0 0 1px rgba(212, 98, 46, 0.35);
-    }
-    #loadoutP2 .skin-swatch.selected {
-      box-shadow: 0 0 0 1px rgba(47, 127, 212, 0.35);
-    }
-
-    .hat-picker {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
+      border-color: var(--rarity, var(--rust));
+      color: var(--ink);
+      background: #161410;
     }
     .skin-swatch.locked {
-      opacity: 0.62;
+      opacity: 0.55;
       border-style: dashed;
-    }
-    .skin-swatch.locked:hover {
-      border-color: rgba(224, 160, 32, 0.45);
-      opacity: 0.85;
     }
     .skin-swatch .lock-dot {
       background: #2a2a28 !important;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
       position: relative;
     }
     .skin-swatch .lock-dot::after {
-      content: '🔒';
-      font-size: 7px;
+      content: "×";
       position: absolute;
       inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 8px;
+      color: #888;
       line-height: 1;
     }
     .hat-cost {
       font-size: 8px;
-      color: #e0a020;
+      color: var(--warn);
       font-weight: 800;
-      letter-spacing: 0.02em;
     }
-    .dust-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(224, 160, 32, 0.35);
-      background: rgba(224, 160, 32, 0.08);
-      color: #e8c850;
-      font: 700 11px/1 var(--font);
-      letter-spacing: 0.06em;
+
+    .loadout-note {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--mute);
+      text-align: center;
+      max-width: 720px;
+      line-height: 1.4;
     }
-    .dust-chip .dust-amt {
-      color: var(--paper);
-      font-variant-numeric: tabular-nums;
-    }
-    .loadout-header-row {
+    .loadout-actions {
       display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 16px;
-      width: min(720px, 100%);
-      margin-bottom: 4px;
+      gap: 8px;
+      margin-top: 16px;
+      min-width: 280px;
     }
-    .loadout-header-row .section-title { margin-bottom: 0; }
+    .loadout-actions .menu-btn {
+      flex: 1;
+      text-align: center;
+    }
+
     .loadout-toast {
       position: absolute;
       left: 50%;
-      bottom: 18%;
-      transform: translateX(-50%) translateY(8px);
-      padding: 8px 14px;
-      border-radius: 8px;
-      background: rgba(12, 16, 18, 0.92);
-      border: 1px solid rgba(224, 160, 32, 0.4);
-      color: var(--paper);
+      bottom: 14%;
+      transform: translateX(-50%) translateY(6px);
+      padding: 8px 12px;
+      background: var(--panel);
+      border: 1px solid #4a3a18;
+      color: var(--ink);
       font: 600 12px/1.2 var(--font);
-      letter-spacing: 0.04em;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.18s, transform 0.18s;
+      transition: opacity 0.15s, transform 0.15s;
       z-index: 5;
     }
     .loadout-toast.show {
@@ -930,167 +670,132 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    .loadout-note {
-      margin-top: 14px;
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 0.06em;
-      text-align: center;
-    }
-
-    .loadout-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 22px;
-      min-width: 300px;
-    }
-    .loadout-actions .menu-btn { flex: 1; text-align: center; }
-
-    /* —— Matchmaking —— */
+    /* ── Matchmaking ── */
     .mm-card {
-      width: 400px;
-      text-align: center;
-      padding: 36px 32px 28px;
+      width: 420px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 22px 22px 18px;
     }
+    .mm-card .page-kicker { margin-bottom: 2px; }
+    .mm-card h2 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: #ebe6da;
+    }
+
     .lobby-format {
-      margin: 0 0 14px;
       font-size: 12px;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      font-weight: 600;
+      color: var(--mute);
+      margin-bottom: 14px;
+      font-weight: 500;
     }
+
     .lobby-slots {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin: 0 0 18px;
+      gap: 8px;
+      margin-bottom: 14px;
     }
     .lobby-slot {
       border: 1px solid var(--line);
-      border-radius: 10px;
+      background: var(--bg);
       padding: 12px 10px;
-      background: rgba(8, 12, 14, 0.55);
+      min-height: 56px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      min-height: 58px;
+      gap: 3px;
       justify-content: center;
     }
     .lobby-slot .ls-label {
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      font-weight: 800;
-      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--mute);
     }
     .lobby-slot .ls-state {
       font-size: 13px;
       font-weight: 700;
-      color: var(--sand);
+      color: var(--mute);
     }
     .lobby-slot.filled {
-      border-color: rgba(90, 154, 72, 0.45);
-      background: rgba(90, 154, 72, 0.08);
+      border-color: #3a5a30;
+      background: #101810;
     }
-    .lobby-slot.filled .ls-state { color: #8ecf72; }
+    .lobby-slot.filled .ls-state { color: #8ab870; }
     .lobby-slot.filled.ready {
-      border-color: rgba(212, 98, 46, 0.5);
-      box-shadow: 0 0 0 1px rgba(212, 98, 46, 0.2);
+      border-color: var(--rust-dim);
+      background: #1a1410;
     }
-    .lobby-slot.filled.ready .ls-state { color: #e8a060; }
-    .lobby-slot.empty .ls-state {
-      color: var(--muted);
-      font-weight: 600;
-    }
+    .lobby-slot.filled.ready .ls-state { color: #e0a060; }
 
-    .search-ring {
-      width: 72px;
-      height: 72px;
-      margin: 0 auto 20px;
-      border-radius: 50%;
-      border: 2px solid rgba(212, 98, 46, 0.25);
+    .search-pulse {
+      height: 2px;
+      background: var(--line);
+      margin: 0 0 14px;
+      overflow: hidden;
       position: relative;
-      display: grid;
-      place-items: center;
     }
-    .search-ring::before {
+    .search-pulse::after {
       content: "";
       position: absolute;
-      inset: -6px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      border-top-color: var(--clay);
-      border-right-color: rgba(212, 98, 46, 0.3);
-      animation: spin 1s linear infinite;
+      top: 0; bottom: 0;
+      left: -30%;
+      width: 30%;
+      background: var(--rust);
+      animation: scan 1.4s linear infinite;
     }
-    .search-ring-core {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--clay);
-      box-shadow: 0 0 16px rgba(212, 98, 46, 0.5);
-      animation: pulseCore 1.2s ease-in-out infinite;
+    @keyframes scan {
+      to { left: 100%; }
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes pulseCore {
-      0%, 100% { transform: scale(0.85); opacity: 0.7; }
-      50% { transform: scale(1.1); opacity: 1; }
+
+    #lobbyInfo {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
     }
+    #lobbyStatus {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ok);
+      min-height: 18px;
+      margin-bottom: 12px;
+    }
+
+    .queue-log {
+      width: 100%;
+      max-height: 130px;
+      overflow-y: auto;
+      text-align: left;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      margin-bottom: 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--mute);
+    }
+    .queue-log .log-line { margin: 1px 0; word-break: break-word; }
+    .queue-log .log-line .t { color: var(--faint); margin-right: 6px; }
+    .queue-log .log-line.ok { color: #8ab870; }
+    .queue-log .log-line.warn { color: #c8a050; }
+    .queue-log .log-line.err { color: #d07060; }
+    .queue-log .log-line.info { color: #7a9ab0; }
 
     .lobby-actions {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      margin-top: 16px;
+      gap: 6px;
     }
     .lobby-actions .menu-btn {
       width: 100%;
       text-align: center;
     }
 
-    #lobbyInfo {
-      color: var(--paper);
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-    #lobbyStatus {
-      color: var(--ok);
-      font-size: 12px;
-      letter-spacing: 0.06em;
-      min-height: 20px;
-      margin-bottom: 14px;
-      font-family: var(--mono);
-    }
-
-    .queue-log {
-      width: 100%;
-      max-height: 140px;
-      overflow-y: auto;
-      text-align: left;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 16px;
-      font-family: var(--mono);
-      font-size: 11px;
-      line-height: 1.45;
-      color: var(--sand);
-    }
-    .queue-log .log-line {
-      margin: 2px 0;
-      word-break: break-word;
-    }
-    .queue-log .log-line .t {
-      color: var(--muted);
-      margin-right: 8px;
-    }
-    .queue-log .log-line.ok { color: #8fd18f; }
-    .queue-log .log-line.warn { color: #e0b060; }
-    .queue-log .log-line.err { color: #e07a6a; }
-    .queue-log .log-line.info { color: #9ec8ef; }
-
-    /* —— HUD —— */
+    /* ── HUD ── */
     #hud {
       position: absolute;
       inset: 0;
@@ -1100,253 +805,184 @@
     }
     #hud.active { display: block; }
 
-    /* Bottom-left: health stack */
     #hudHealth {
       position: absolute;
-      left: 16px;
-      bottom: 16px;
+      left: 12px;
+      bottom: 12px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      width: 260px;
-      z-index: 2;
+      gap: 6px;
+      width: 240px;
     }
-
-    /* Bottom-right: ammo / weapon stack */
     #hudAmmo {
       position: absolute;
-      right: 16px;
-      bottom: 16px;
+      right: 12px;
+      bottom: 12px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      width: 240px;
-      align-items: stretch;
-      z-index: 2;
+      gap: 6px;
+      width: 220px;
     }
 
     .player-hud {
       width: 100%;
-      padding: 0;
-      background: var(--glass);
+      background: rgba(10, 12, 11, 0.88);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
       overflow: hidden;
-      transition: border-color 0.15s, opacity 0.2s;
     }
+    #player1Hud, #p1AmmoPanel { border-left: 3px solid var(--p1); }
+    #player2Hud, #p2AmmoPanel { border-left: 3px solid var(--p2); }
 
-    #player1Hud { border-top: 2px solid var(--clay); }
-    #player2Hud { border-top: 2px solid var(--blue); }
-    #p1AmmoPanel { border-top: 2px solid var(--clay); }
-    #p2AmmoPanel { border-top: 2px solid var(--blue); }
+    .player-hud.low-hp { border-color: var(--bad); }
+    .player-hud.dead { opacity: 0.5; }
 
-    .player-hud.low-hp {
-      border-color: rgba(192, 57, 43, 0.45);
-    }
-    .player-hud.dead {
-      opacity: 0.55;
-      filter: grayscale(0.35);
-    }
-
-    .player-hud-inner {
-      padding: 10px 12px 11px;
-    }
+    .player-hud-inner { padding: 8px 10px 9px; }
 
     .player-hud-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 7px;
+      margin-bottom: 5px;
       gap: 8px;
     }
 
     .player-name {
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.04em;
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
     }
     #player1Hud .player-name,
-    #p1AmmoPanel .player-name { color: #e07a48; }
+    #p1AmmoPanel .player-name { color: var(--p1); }
     #player2Hud .player-name,
-    #p2AmmoPanel .player-name { color: #6a98c4; }
+    #p2AmmoPanel .player-name { color: var(--p2); }
 
     .player-name .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
+      width: 5px;
+      height: 5px;
       background: var(--ok);
       flex-shrink: 0;
     }
-    .player-hud.low-hp .status-dot {
-      background: #c0392b;
-    }
-    .player-hud.dead .status-dot {
-      background: var(--muted);
-    }
+    .player-hud.low-hp .status-dot { background: var(--bad); }
+    .player-hud.dead .status-dot { background: var(--mute); }
 
     .health-text {
-      font-size: 20px;
-      font-weight: 800;
-      font-variant-numeric: tabular-nums;
       font-family: var(--mono);
-      color: var(--paper);
+      font-size: 18px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
       line-height: 1;
     }
-    .player-hud.low-hp .health-text { color: #e07060; }
-    .player-hud.dead .health-text { color: var(--muted); }
+    .player-hud.low-hp .health-text { color: #d06050; }
+    .player-hud.dead .health-text { color: var(--mute); }
 
     .health-bar-container {
       width: 100%;
-      height: 8px;
-      background: rgba(0, 0, 0, 0.45);
-      border-radius: 99px;
+      height: 6px;
+      background: #050605;
+      border: 1px solid #1a1e1a;
       overflow: hidden;
-      margin-bottom: 0;
-      box-shadow: inset 0 1px 2px rgba(0,0,0,0.45);
-      position: relative;
     }
-
     .health-bar {
       height: 100%;
       width: 100%;
-      border-radius: 2px;
-      background: linear-gradient(90deg, var(--clay-deep), var(--clay));
-      transition: width 0.12s ease-out, background 0.2s;
-      position: relative;
+      background: var(--p1);
+      transition: width 0.1s linear;
     }
-    .health-bar::after {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 45%;
-      border-radius: 99px 99px 0 0;
-      background: linear-gradient(180deg, rgba(255,255,255,0.22), transparent);
-      pointer-events: none;
-    }
-    #player2Hud .health-bar {
-      background: linear-gradient(90deg, var(--blue-deep), var(--blue));
-    }
-    .player-hud.low-hp .health-bar {
-      background: linear-gradient(90deg, #7a1a12, #c0392b) !important;
-    }
-
-    /* Ammo panel (bottom right) */
-    .ammo-panel .player-hud-inner { padding: 10px 14px 12px; }
-    .ammo-panel .player-hud-top { margin-bottom: 4px; }
+    #player2Hud .health-bar { background: var(--p2); }
+    .player-hud.low-hp .health-bar { background: var(--bad) !important; }
 
     .weapon-name {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.08em;
-      color: var(--muted);
+      color: var(--mute);
       text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
     .weapon-ammo {
       display: block;
-      font-size: 26px;
-      font-weight: 800;
       font-family: var(--mono);
+      font-size: 24px;
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
-      color: var(--paper);
-      line-height: 1.05;
-      letter-spacing: 0.02em;
+      color: var(--ink);
+      line-height: 1;
       text-align: right;
     }
     .weapon-ammo.reloading {
-      color: #e0b060;
-      animation: reloadBlink 0.55s ease-in-out infinite;
+      color: var(--warn);
+      animation: blink 0.5s steps(1) infinite;
     }
-    .weapon-ammo.empty { color: #e07a6a; }
-    @keyframes reloadBlink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.45; }
+    .weapon-ammo.empty { color: #d07060; }
+    @keyframes blink {
+      50% { opacity: 0.4; }
     }
 
     .hud-meta-row {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
-      padding-top: 8px;
-      margin-top: 8px;
+      gap: 6px;
+      padding-top: 6px;
+      margin-top: 6px;
       border-top: 1px solid var(--line);
     }
 
     .hud-chip {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
+      font-family: var(--mono);
       font-size: 10px;
       font-weight: 700;
-      font-family: var(--mono);
-      letter-spacing: 0.02em;
-      color: var(--sand);
-      background: rgba(0, 0, 0, 0.3);
+      color: var(--mute);
       border: 1px solid var(--line);
-      border-radius: 2px;
-      padding: 4px 7px;
-      min-height: 24px;
+      background: var(--bg);
+      padding: 3px 6px;
+      min-height: 22px;
     }
     .hud-chip .chip-label {
       font-size: 8px;
-      letter-spacing: 0.08em;
-      color: var(--muted);
+      color: var(--faint);
       text-transform: uppercase;
-      font-weight: 800;
     }
     .hud-chip.ready {
-      color: #8fd18f;
-      border-color: rgba(92, 184, 92, 0.28);
-      background: rgba(40, 80, 40, 0.25);
+      color: #8ab870;
+      border-color: #2a4a28;
     }
-    .hud-chip.cooling {
-      color: #e0b060;
-      border-color: rgba(224, 176, 96, 0.28);
-    }
-    .hud-chip.dead-chip {
-      color: var(--muted);
-    }
+    .hud-chip.cooling { color: var(--warn); border-color: #4a3a18; }
+    .hud-chip.dead-chip { color: var(--faint); }
 
     .dash-meter {
       flex: 1;
-      height: 4px;
-      background: rgba(0,0,0,0.4);
-      border-radius: 99px;
-      overflow: hidden;
-      min-width: 28px;
-      max-width: 56px;
+      height: 3px;
+      background: #050605;
+      min-width: 24px;
+      max-width: 48px;
+      border: 1px solid #1a1e1a;
     }
     .dash-meter > span {
       display: block;
       height: 100%;
       width: 100%;
-      border-radius: 99px;
-      background: linear-gradient(90deg, #5cb85c, #8fd18f);
-      transition: width 0.1s linear, background 0.15s;
+      background: var(--ok);
+      transition: width 0.08s linear;
     }
-    .dash-meter.cooling > span {
-      background: linear-gradient(90deg, #8a6a20, #e0b060);
-    }
+    .dash-meter.cooling > span { background: var(--warn); }
 
-    /* Scoreboard — top center */
     #scoreDisplay {
       position: absolute;
-      top: 12px;
+      top: 10px;
       left: 50%;
       transform: translateX(-50%);
       text-align: center;
-      padding: 10px 22px 11px;
-      background: var(--glass);
+      padding: 8px 18px 9px;
+      background: rgba(10, 12, 11, 0.9);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      min-width: 200px;
-      box-shadow: var(--shadow);
+      min-width: 180px;
     }
-
     .score-row {
       display: flex;
       align-items: center;
@@ -1356,149 +992,117 @@
     .score-side {
       font-size: 11px;
       font-weight: 800;
-      letter-spacing: 0.1em;
-      min-width: 22px;
+      min-width: 20px;
     }
-    .score-side.p1 { color: #e88855; text-align: right; }
-    .score-side.p2 { color: #6aa0d4; text-align: left; }
-
+    .score-side.p1 { color: var(--p1); text-align: right; }
+    .score-side.p2 { color: var(--p2); text-align: left; }
     #scoreText {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: 0.06em;
-      font-variant-numeric: tabular-nums;
       font-family: var(--mono);
-      color: var(--paper);
-      line-height: 1.05;
+      font-size: 24px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+      line-height: 1;
     }
     #scoreText .score-sep {
-      color: var(--muted);
-      margin: 0 6px;
+      color: var(--mute);
+      margin: 0 5px;
       font-weight: 600;
     }
-
     #roundInfo {
       font-size: 9px;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-      margin-top: 5px;
-      font-weight: 800;
+      color: var(--mute);
+      margin-top: 4px;
+      font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
     #matchTimer {
-      font-size: 11px;
       font-family: var(--mono);
+      font-size: 11px;
       font-weight: 700;
-      color: var(--sand);
-      margin-top: 3px;
-      letter-spacing: 0.06em;
+      color: var(--mute);
+      margin-top: 2px;
       font-variant-numeric: tabular-nums;
     }
 
-    /* Zone — top left */
     #zoneInfo {
       position: absolute;
-      top: 14px;
-      left: 14px;
-      min-width: 150px;
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      color: #e8c0a0;
-      background: var(--glass);
-      border: 1px solid rgba(212, 98, 46, 0.28);
-      padding: 9px 12px 10px;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      top: 10px;
+      left: 12px;
+      min-width: 140px;
       font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: #c8a080;
+      background: rgba(10, 12, 11, 0.9);
+      border: 1px solid #3a2a20;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
     }
     #zoneInfo.shrinking {
-      color: #f0b0a0;
-      border-color: rgba(220, 100, 80, 0.4);
-      background: rgba(40, 16, 14, 0.9);
+      color: #e09070;
+      border-color: #5a3028;
+      background: rgba(24, 12, 10, 0.92);
     }
     .zone-top {
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .zone-top::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--clay);
-      flex-shrink: 0;
-    }
-    #zoneInfo.shrinking .zone-top::before {
-      background: #e07050;
-      animation: hpPulse 0.8s ease-in-out infinite;
-    }
     #zoneLabel { flex: 1; }
-    #zoneRadius {
-      color: inherit;
-      opacity: 0.85;
-      font-weight: 700;
-    }
+    #zoneRadius { opacity: 0.85; }
     .zone-bar {
-      height: 3px;
-      background: rgba(0,0,0,0.4);
-      border-radius: 99px;
+      height: 2px;
+      background: #050605;
       overflow: hidden;
     }
     .zone-bar > span {
       display: block;
       height: 100%;
       width: 100%;
-      border-radius: 2px;
-      background: linear-gradient(90deg, var(--clay-deep), var(--clay));
-      transition: width 0.25s linear;
+      background: var(--rust);
+      transition: width 0.2s linear;
     }
-    #zoneInfo.shrinking .zone-bar > span {
-      background: linear-gradient(90deg, #8a3020, #e07050);
-    }
+    #zoneInfo.shrinking .zone-bar > span { background: #d06040; }
 
     .hud-hint {
       position: absolute;
-      top: 14px;
-      right: 58px;
+      top: 10px;
+      right: 52px;
       font-size: 9px;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: var(--mute);
       font-weight: 700;
-      background: var(--glass);
+      background: rgba(10, 12, 11, 0.9);
       border: 1px solid var(--line);
-      padding: 7px 10px;
-      border-radius: var(--radius);
+      padding: 7px 9px;
     }
 
     .hud-fs-btn {
       position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 34px;
-      height: 34px;
-      border-radius: var(--radius);
+      top: 10px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
       border: 1px solid var(--line);
-      background: var(--glass);
-      color: var(--sand);
-      font-size: 14px;
+      background: rgba(10, 12, 11, 0.9);
+      color: var(--mute);
+      font-size: 13px;
       cursor: pointer;
       pointer-events: auto;
       display: grid;
       place-items: center;
-      transition: border-color 0.12s, color 0.12s;
     }
     .hud-fs-btn:hover {
-      border-color: rgba(212, 98, 46, 0.45);
-      color: var(--paper);
+      border-color: var(--line-hi);
+      color: var(--ink);
     }
 
-    /* —— Overlays —— */
+    /* ── Overlays ── */
     #countdownOverlay,
     #endOverlay,
     #pauseOverlay,
@@ -1509,7 +1113,7 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      background: rgba(6, 10, 12, 0.78);
+      background: rgba(6, 8, 7, 0.82);
       z-index: 20;
     }
     #countdownOverlay.active,
@@ -1518,55 +1122,49 @@
     #controlsOverlay.active { display: flex; }
 
     #countdownText {
-      font-size: 96px;
-      font-weight: 800;
-      letter-spacing: 0;
-      color: var(--paper);
-      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
       font-family: var(--mono);
+      font-size: 100px;
+      font-weight: 800;
+      color: #ebe6da;
       line-height: 1;
     }
     #countdownSub {
-      margin-top: 8px;
+      margin-top: 6px;
       font-size: 13px;
-      letter-spacing: 0.04em;
-      color: var(--sand);
+      color: var(--mute);
       font-weight: 600;
-      text-transform: none;
     }
 
     .overlay-card {
-      background: var(--glass);
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 32px 36px;
-      box-shadow: var(--shadow);
+      padding: 24px 26px 20px;
       text-align: center;
-      min-width: 320px;
-      max-width: 520px;
+      min-width: 300px;
+      max-width: 540px;
     }
-
+    .overlay-card .page-kicker {
+      text-align: left;
+      margin-bottom: 2px;
+    }
     .overlay-card h2 {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 800;
+      color: #ebe6da;
+      margin-bottom: 8px;
       letter-spacing: 0.02em;
-      color: var(--paper);
-      margin-bottom: 10px;
     }
-
     .overlay-card p {
-      color: var(--sand);
-      margin-bottom: 24px;
-      font-size: 14px;
-      font-weight: 500;
+      color: var(--mute);
+      margin-bottom: 18px;
+      font-size: 13px;
       line-height: 1.4;
     }
-
     .overlay-actions {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      min-width: 220px;
+      gap: 6px;
+      min-width: 200px;
       margin: 0 auto;
       pointer-events: auto;
     }
@@ -1574,56 +1172,48 @@
     .controls-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin: 8px 0 16px;
-    }
-
-    .control-panel {
-      background: rgba(0, 0, 0, 0.28);
-      border: 1px solid var(--line);
-      padding: 16px 16px 12px;
-      border-radius: 10px;
-      min-width: 230px;
+      gap: 8px;
+      margin: 10px 0 14px;
       text-align: left;
     }
-
-    .control-panel h3 {
-      font-size: 10px;
-      letter-spacing: 0.2em;
-      margin-bottom: 12px;
-      font-weight: 800;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--line);
+    .control-panel {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      padding: 12px 12px 8px;
+      min-width: 0;
     }
-    .control-panel:nth-child(1) h3 { color: #f08a52; }
-    .control-panel:nth-child(2) h3 { color: #6aa8ef; }
-    .control-panel.wide h3 { color: var(--sand); }
+    .control-panel h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+      color: var(--mute);
+    }
+    .control-panel:nth-child(1) h3 { color: var(--p1); }
+    .control-panel:nth-child(2) h3 { color: var(--p2); }
+    .control-panel.wide {
+      grid-column: 1 / -1;
+    }
+    .control-panel.wide h3 { color: var(--ink); }
 
     .control-item {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      margin: 7px 0;
+      align-items: baseline;
+      gap: 12px;
+      margin: 5px 0;
       font-size: 12px;
-      color: var(--sand);
+      color: var(--mute);
       font-weight: 600;
     }
-
     .control-key {
       font-family: var(--mono);
       font-size: 11px;
-      color: var(--paper);
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--line-strong);
-      padding: 3px 8px;
-      border-radius: 4px;
+      color: var(--ink);
       font-weight: 700;
       white-space: nowrap;
-    }
-
-    .control-panel.wide {
-      grid-column: 1 / -1;
     }
 
     #endOverlay .menu-btn,
@@ -1639,7 +1229,7 @@
       width: 100%;
     }
 
-    /* —— Update overlay —— */
+    /* ── Update ── */
     #updateOverlay {
       position: absolute;
       inset: 0;
@@ -1647,92 +1237,112 @@
       align-items: center;
       justify-content: center;
       z-index: 40;
-      background: rgba(6, 10, 12, 0.78);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(6, 8, 7, 0.88);
     }
     #updateOverlay.active { display: flex; }
 
     .update-card {
-      width: min(420px, 92%);
-      background: var(--glass);
+      width: min(400px, 92%);
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 28px 28px 22px;
-      box-shadow: var(--shadow);
+      padding: 22px 22px 18px;
       text-align: center;
     }
-
     .update-versions {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       font-family: var(--mono);
-      font-size: 18px;
-      font-weight: 800;
-      margin: 12px 0 14px;
-      color: var(--sand);
+      font-size: 16px;
+      font-weight: 700;
+      margin: 10px 0 12px;
+      color: var(--mute);
     }
-    .update-versions .arrow { color: var(--muted); }
-    .update-versions .hl { color: var(--clay); }
+    .update-versions .arrow { color: var(--faint); }
+    .update-versions .hl { color: var(--rust); }
 
     .update-notes {
-      color: var(--sand);
-      font-size: 13px;
-      line-height: 1.45;
-      margin-bottom: 18px;
-      max-height: 120px;
+      color: var(--mute);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-bottom: 14px;
+      max-height: 110px;
       overflow-y: auto;
       white-space: pre-wrap;
       text-align: left;
-      background: rgba(0,0,0,0.25);
+      background: var(--bg);
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
+      padding: 8px 10px;
     }
 
-    .update-progress-wrap { margin-bottom: 14px; }
+    .update-progress-wrap { margin-bottom: 12px; }
     .update-progress-bar {
-      height: 8px;
-      border-radius: 99px;
-      background: rgba(0,0,0,0.4);
+      height: 4px;
+      background: var(--bg);
+      border: 1px solid var(--line);
       overflow: hidden;
-      box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
     }
     #updateProgressFill {
       height: 100%;
       width: 0%;
-      border-radius: 99px;
-      background: linear-gradient(90deg, var(--clay-deep), var(--clay), #f08a52);
-      transition: width 0.15s linear;
-      box-shadow: 0 0 10px rgba(212, 98, 46, 0.4);
+      background: var(--rust);
+      transition: width 0.12s linear;
     }
     .update-progress-meta {
       display: flex;
       justify-content: space-between;
-      margin-top: 6px;
-      font-size: 11px;
+      margin-top: 5px;
+      font-size: 10px;
       font-family: var(--mono);
-      color: var(--muted);
-      letter-spacing: 0.06em;
+      color: var(--mute);
     }
-
     .update-error {
-      color: #e07a6a;
+      color: #d07060;
       font-size: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       font-family: var(--mono);
     }
-
     .update-actions {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .update-actions .menu-btn {
       text-align: center;
       pointer-events: auto;
+    }
+
+    /* legacy class aliases used in some JS paths */
+    .section-title {
+      font-size: 11px;
+      color: var(--mute);
+      font-weight: 600;
+      text-align: left;
+      width: 100%;
+    }
+    .section-title strong {
+      display: block;
+      font-size: 22px;
+      color: #ebe6da;
+      margin-top: 2px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .section-sub {
+      color: var(--mute);
+      font-size: 12px;
+      margin-bottom: 0;
+      line-height: 1.35;
+    }
+    .panel { background: var(--panel); border: 1px solid var(--line); }
+    .loadout-header-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      width: min(920px, 100%);
+      margin-bottom: 4px;
     }
   </style>
 </head>
@@ -1742,109 +1352,63 @@
     <div id="startScreen" class="screen active">
       <div class="screen-content">
         <div class="mm">
-          <div class="mm-field" aria-hidden="true"></div>
-          <div class="mm-haze" aria-hidden="true"></div>
-          <div class="mm-storm" aria-hidden="true"></div>
-          <div class="mm-island" aria-hidden="true">
-            <svg viewBox="0 0 900 420" preserveAspectRatio="xMidYMax meet">
-              <!-- water shelf -->
-              <ellipse cx="450" cy="360" rx="380" ry="42" fill="#0a1418" opacity="0.9"/>
-              <ellipse cx="450" cy="352" rx="340" ry="28" fill="#123038" opacity="0.55"/>
-              <!-- island mass -->
-              <path d="M120 340
-                C180 300 210 250 270 230
-                C310 216 340 250 390 220
-                C430 196 470 170 520 188
-                C570 206 600 160 650 190
-                C700 220 760 250 800 300
-                C830 328 820 350 780 355
-                L160 360
-                C140 358 120 350 120 340Z"
-                fill="#1c2e24"/>
-              <path d="M160 338
-                C210 300 250 268 300 255
-                C340 244 370 270 420 248
-                C460 230 500 210 545 222
-                C590 234 620 200 660 220
-                C700 240 740 268 770 308
-                C785 325 770 340 740 342
-                L180 348
-                C165 346 155 342 160 338Z"
-                fill="#2a4030"/>
-              <!-- ridge / cliffs -->
-              <path d="M300 255 L340 210 L390 240 L360 268 Z" fill="#3a4f38" opacity="0.85"/>
-              <path d="M520 200 L560 165 L600 195 L575 230 Z" fill="#354a36" opacity="0.9"/>
-              <!-- sand edge -->
-              <path d="M180 348 C260 335 340 340 450 338 C560 336 650 340 740 342 L740 355 L180 355 Z"
-                fill="#8a7350" opacity="0.35"/>
-              <!-- crates -->
-              <rect x="410" y="300" width="18" height="14" fill="#5a4630" transform="rotate(-6 419 307)"/>
-              <rect x="560" y="290" width="16" height="12" fill="#4a3a28" transform="rotate(8 568 296)"/>
-              <!-- beacon -->
-              <rect x="446" y="248" width="6" height="42" fill="#3a2a1a"/>
-              <circle cx="449" cy="246" r="5" fill="#d4622e"/>
-              <circle cx="449" cy="246" r="10" fill="none" stroke="#d4622e" stroke-opacity="0.35" stroke-width="1"/>
-            </svg>
-          </div>
-          <div class="mm-grain" aria-hidden="true"></div>
-          <div class="mm-vignette" aria-hidden="true"></div>
-
-          <div class="mm-ui">
-            <div class="mm-left">
-              <div class="mm-eyebrow"><i></i>1v1 island duel</div>
-              <h1 class="mm-title">Dustline</h1>
-              <p class="mm-lede">
-                Two operators. One shrinking ring. First to three walks off the island.
-              </p>
-              <div class="mm-stats">
-                <div class="mm-stat"><b>Bo5</b><span>First to 3</span></div>
-                <div class="mm-stat"><b>Storm</b><span>Closes in</span></div>
-                <div class="mm-stat"><b>Center</b><span>Hits harder</span></div>
-              </div>
-              <div class="mm-keys">
-                <kbd>WASD</kbd>/<kbd>L-Stick</kbd> move
-                · <kbd>Mouse</kbd>/<kbd>R-Stick</kbd> aim
-                · <kbd>LMB</kbd>/<kbd>RT</kbd> fire
-                · <kbd>Shift</kbd>/<kbd>A</kbd> dash
-                · <span id="padBadge" class="pad-badge">Pad —</span>
-              </div>
+          <div class="mm-main">
+            <div class="mm-kicker">1v1 · island · steam</div>
+            <h1 class="mm-title">DUSTLINE</h1>
+            <p class="mm-lede">
+              Two players. Closing ring. First to three wins. No respawns mid-round.
+            </p>
+            <div class="mm-facts">
+              <div class="mm-fact"><b>Bo5</b><span>first to 3</span></div>
+              <div class="mm-fact"><b>Storm</b><span>shrinks</span></div>
+              <div class="mm-fact"><b>Center</b><span>more dmg</span></div>
             </div>
-
-            <div class="mm-right">
-              <div class="mm-panel">
-                <div class="mm-panel-head">
-                  <strong>Deploy</strong>
-                  <span>select mode</span>
-                </div>
-                <div class="mm-actions">
-                  <button class="menu-btn primary" id="btnFindMatch" type="button">
-                    Find Match <span class="btn-hint">Steam</span>
-                  </button>
-                  <button class="menu-btn" id="btnVsBot" type="button">
-                    Vs Bot <span class="btn-hint">Solo</span>
-                  </button>
-                  <button class="menu-btn" id="btnLocalPlay" type="button">
-                    Local Duel <span class="btn-hint">2P</span>
-                  </button>
-                </div>
-                <div class="mm-divider"></div>
-                <div class="mm-utils">
-                  <button class="menu-btn" id="btnControls" type="button">Controls</button>
-                  <button class="menu-btn" id="btnFullscreen" type="button">
-                    Fullscreen <span class="btn-hint">F11</span>
-                  </button>
-                  <button class="menu-btn" id="btnCheckUpdate" type="button">
-                    Updates <span class="btn-hint">Auto</span>
-                  </button>
-                  <button class="menu-btn ghost" id="btnQuit" type="button">Quit</button>
-                </div>
-              </div>
+            <div class="mm-keys">
+              <kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim · <kbd>LMB</kbd> fire · <kbd>Shift</kbd> dash · <kbd>G</kbd> nade
+              · <span id="padBadge" class="pad-badge">Pad —</span>
             </div>
+            <div class="mm-foot">com.dustline.game</div>
           </div>
 
-          <div class="mm-foot">
-            <span>com.dustline.game</span>
-            <span><b>Ready</b> · loadout after deploy</span>
+          <div class="mm-side">
+            <div class="mm-side-head">
+              <b>Play</b>
+              <span>mode · loadout first if you want</span>
+            </div>
+            <div class="mm-loadout-sum" id="mmLoadoutSum" title="Open Loadout to change">
+              <div class="mm-loadout-sum-row">
+                <span class="mm-ls-label">P1</span>
+                <span class="mm-ls-val" id="mmSumP1">AR · Default</span>
+              </div>
+              <div class="mm-loadout-sum-row">
+                <span class="mm-ls-label">P2</span>
+                <span class="mm-ls-val" id="mmSumP2">SMG · Default</span>
+              </div>
+              <div class="mm-loadout-sum-dust">
+                <span>DUST</span>
+                <span id="mmDustBalance">0</span>
+              </div>
+            </div>
+            <div class="mm-actions">
+              <button class="menu-btn" id="btnOpenLoadout" type="button">
+                Loadout <span class="btn-hint">Skins · Hats</span>
+              </button>
+              <button class="menu-btn primary" id="btnFindMatch" type="button">
+                Find Match <span class="btn-hint">Steam</span>
+              </button>
+              <button class="menu-btn" id="btnVsBot" type="button">
+                Vs Bot <span class="btn-hint">Solo</span>
+              </button>
+              <button class="menu-btn" id="btnLocalPlay" type="button">
+                Local Duel <span class="btn-hint">2P</span>
+              </button>
+            </div>
+            <div class="mm-utils">
+              <button class="menu-btn" id="btnControls" type="button">Controls</button>
+              <button class="menu-btn" id="btnFullscreen" type="button">Fullscreen</button>
+              <button class="menu-btn" id="btnCheckUpdate" type="button">Updates</button>
+              <button class="menu-btn ghost" id="btnQuit" type="button">Quit</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1853,14 +1417,14 @@
     <!-- LOADOUT -->
     <div id="loadoutScreen" class="screen">
       <div class="screen-bg"></div>
-      <div class="screen-frame"></div>
       <div class="screen-content">
-        <div class="loadout-header-row">
+        <div class="loadout-header-row page-head">
           <div>
-            <div class="section-title">Before the fight <strong>Loadout</strong></div>
-            <p class="section-sub">Primary, weapon finish, and unlockable hats. Earn Dust by winning.</p>
+            <div class="page-kicker">main menu</div>
+            <h2>Loadout</h2>
+            <p class="section-sub">Weapon, skin, hat for both seats. Saved for every mode.</p>
           </div>
-          <div class="dust-chip" title="Earn Dust by winning rounds and matches">
+          <div class="dust-chip" title="Earn Dust by winning">
             <span>DUST</span>
             <span class="dust-amt" id="dustBalance">0</span>
           </div>
@@ -1869,7 +1433,7 @@
           <div class="loadout-col" id="loadoutP1">
             <div class="loadout-col-head">
               <h3>PLAYER 1</h3>
-              <span class="loadout-badge">WASD · Mouse · Pad 1</span>
+              <span class="loadout-badge">online · local · bot</span>
             </div>
             <div class="weapon-cards" data-player="0"></div>
             <div class="skin-picker" data-player="0"></div>
@@ -1878,16 +1442,18 @@
           <div class="loadout-col" id="loadoutP2">
             <div class="loadout-col-head">
               <h3>PLAYER 2</h3>
-              <span class="loadout-badge">Arrows · Pad 2</span>
+              <span class="loadout-badge">local duel</span>
             </div>
             <div class="weapon-cards" data-player="1"></div>
             <div class="skin-picker" data-player="1"></div>
             <div class="hat-picker" data-player="1"></div>
           </div>
         </div>
-        <p class="loadout-note">KB: Q switch · R reload · Shift dash · Pad: X switch · B reload · A dash · RT fire · LT/Y nade · Navigate loadout with D-pad</p>
+        <p class="loadout-note">
+          Changes save automatically. P1 is used for online / bot. Both for local 2P.
+        </p>
         <div class="loadout-actions">
-          <button class="menu-btn primary" id="btnStartLoadout">Start Duel</button>
+          <button class="menu-btn primary" id="btnLoadoutDone">Done</button>
           <button class="menu-btn ghost" id="btnLoadoutBack">Back</button>
         </div>
         <div class="loadout-toast" id="loadoutToast" role="status"></div>
@@ -1897,17 +1463,17 @@
     <!-- MATCHMAKING -->
     <div id="lobbyScreen" class="screen">
       <div class="screen-bg"></div>
-      <div class="screen-frame"></div>
       <div class="screen-content">
-        <div class="panel mm-card">
-          <div class="section-title">Queue <strong>MATCHMAKING</strong></div>
-          <p class="lobby-format" id="lobbyMeta">Waiting for player… (0/2) · Best of 5</p>
+        <div class="mm-card">
+          <div class="page-kicker">queue</div>
+          <h2>Matchmaking</h2>
+          <p class="lobby-format" id="lobbyMeta">Waiting… (0/2) · Best of 5</p>
           <div class="lobby-slots" id="lobbySlots" aria-live="polite">
-            <div class="lobby-slot empty"><span class="ls-label">P1</span><span class="ls-state">Waiting…</span></div>
-            <div class="lobby-slot empty"><span class="ls-label">P2</span><span class="ls-state">Waiting…</span></div>
+            <div class="lobby-slot empty"><span class="ls-label">P1</span><span class="ls-state">—</span></div>
+            <div class="lobby-slot empty"><span class="ls-label">P2</span><span class="ls-state">—</span></div>
           </div>
-          <div class="search-ring" aria-hidden="true"><div class="search-ring-core"></div></div>
-          <p id="lobbyInfo">Searching for opponent…</p>
+          <div class="search-pulse" aria-hidden="true"></div>
+          <p id="lobbyInfo">Searching…</p>
           <p id="lobbyStatus"></p>
           <div class="queue-log" id="queueLog" aria-live="polite"></div>
           <div class="lobby-actions">
@@ -1944,7 +1510,6 @@
       <div class="hud-hint">Esc pause · F11 fullscreen</div>
       <button type="button" class="hud-fs-btn" id="btnFullscreenHud" title="Fullscreen (F11)">⛶</button>
 
-      <!-- Health: bottom left -->
       <div id="hudHealth">
         <div id="player1Hud" class="player-hud">
           <div class="player-hud-inner">
@@ -1966,7 +1531,6 @@
         </div>
       </div>
 
-      <!-- Ammo: bottom right -->
       <div id="hudAmmo">
         <div id="p1AmmoPanel" class="player-hud ammo-panel">
           <div class="player-hud-inner">
@@ -2020,7 +1584,7 @@
     <!-- END -->
     <div id="endOverlay">
       <div class="overlay-card">
-        <div class="section-title">Result</div>
+        <div class="page-kicker">result</div>
         <h2 id="endTitle">ROUND</h2>
         <p id="endMessage"></p>
         <div class="overlay-actions">
@@ -2033,9 +1597,9 @@
     <!-- PAUSE -->
     <div id="pauseOverlay">
       <div class="overlay-card">
-        <div class="section-title">Hold</div>
-        <h2>PAUSED</h2>
-        <p>Match is frozen. Resume when ready.</p>
+        <div class="page-kicker">hold</div>
+        <h2>Paused</h2>
+        <p>Match frozen.</p>
         <div class="overlay-actions">
           <button class="menu-btn primary" id="btnResume">Resume</button>
           <button class="menu-btn ghost" id="btnQuitPause">Menu</button>
@@ -2046,12 +1610,13 @@
     <!-- CONTROLS -->
     <div id="controlsOverlay">
       <div class="overlay-card">
-        <div class="section-title">Input <strong style="font-size:22px;letter-spacing:0.16em;">CONTROLS</strong></div>
+        <div class="page-kicker">input</div>
+        <h2 style="text-align:left;margin-bottom:4px;">Controls</h2>
         <div class="controls-grid">
           <div class="control-panel">
             <h3>KEYBOARD P1</h3>
-            <div class="control-item"><span>Move</span><span class="control-key">W A S D</span></div>
-            <div class="control-item"><span>Aim / Shoot</span><span class="control-key">Mouse / LMB</span></div>
+            <div class="control-item"><span>Move</span><span class="control-key">WASD</span></div>
+            <div class="control-item"><span>Aim / Fire</span><span class="control-key">Mouse / LMB</span></div>
             <div class="control-item"><span>Switch</span><span class="control-key">Q</span></div>
             <div class="control-item"><span>Reload</span><span class="control-key">R</span></div>
             <div class="control-item"><span>Dash</span><span class="control-key">Shift</span></div>
@@ -2060,49 +1625,48 @@
           <div class="control-panel">
             <h3>KEYBOARD P2</h3>
             <div class="control-item"><span>Move / Aim</span><span class="control-key">Arrows</span></div>
-            <div class="control-item"><span>Shoot</span><span class="control-key">Enter</span></div>
+            <div class="control-item"><span>Fire</span><span class="control-key">Enter</span></div>
             <div class="control-item"><span>Switch</span><span class="control-key">RShift</span></div>
             <div class="control-item"><span>Reload</span><span class="control-key">RCtrl</span></div>
             <div class="control-item"><span>Dash</span><span class="control-key">M</span></div>
             <div class="control-item"><span>Grenade</span><span class="control-key">. / N</span></div>
           </div>
           <div class="control-panel wide">
-            <h3>CONTROLLER (Xbox / DualSense / Pro)</h3>
-            <div class="control-item"><span>Move</span><span class="control-key">Left stick · D-pad</span></div>
-            <div class="control-item"><span>Aim</span><span class="control-key">Right stick</span></div>
-            <div class="control-item"><span>Shoot</span><span class="control-key">RT / R2</span></div>
-            <div class="control-item"><span>Grenade</span><span class="control-key">LT / L2 · Y / △</span></div>
-            <div class="control-item"><span>Dash</span><span class="control-key">A / ✕ · L3</span></div>
-            <div class="control-item"><span>Reload</span><span class="control-key">B / ○ · RB</span></div>
-            <div class="control-item"><span>Switch weapon</span><span class="control-key">X / □ · LB</span></div>
-            <div class="control-item"><span>Pause</span><span class="control-key">Start / Options</span></div>
-            <div class="control-item"><span>Menus</span><span class="control-key">D-pad · A confirm · B back</span></div>
-            <div class="control-item"><span>Local 2P</span><span class="control-key">Pad 1 = P1 · Pad 2 = P2</span></div>
+            <h3>CONTROLLER</h3>
+            <div class="control-item"><span>Move</span><span class="control-key">L-Stick · D-Pad</span></div>
+            <div class="control-item"><span>Aim</span><span class="control-key">R-Stick</span></div>
+            <div class="control-item"><span>Fire</span><span class="control-key">RT</span></div>
+            <div class="control-item"><span>Grenade</span><span class="control-key">LT · Y</span></div>
+            <div class="control-item"><span>Dash</span><span class="control-key">A · L3</span></div>
+            <div class="control-item"><span>Reload</span><span class="control-key">B · RB</span></div>
+            <div class="control-item"><span>Switch</span><span class="control-key">X · LB</span></div>
+            <div class="control-item"><span>Pause</span><span class="control-key">Start</span></div>
+            <div class="control-item"><span>Menus</span><span class="control-key">D-Pad · A · B</span></div>
+            <div class="control-item"><span>Local 2P</span><span class="control-key">Pad1 = P1 · Pad2 = P2</span></div>
           </div>
           <div class="control-panel wide">
             <h3>GENERAL</h3>
             <div class="control-item"><span>Pause</span><span class="control-key">Esc · Start</span></div>
             <div class="control-item"><span>Fullscreen</span><span class="control-key">F11</span></div>
-            <div class="control-item"><span>Medkits</span><span class="control-key">Walk over</span></div>
-            <div class="control-item"><span>Storm</span><span class="control-key">Stay in circle</span></div>
-            <div class="control-item"><span>Center hits</span><span class="control-key">More damage</span></div>
-            <div class="control-item"><span>First shot / Sniper still</span><span class="control-key">100% acc</span></div>
+            <div class="control-item"><span>Heal</span><span class="control-key">Walk over kit</span></div>
+            <div class="control-item"><span>Storm</span><span class="control-key">Stay inside</span></div>
           </div>
         </div>
-        <button class="menu-btn" id="btnCloseControls" style="width:100%;text-align:center;">Close <span class="btn-hint">B / Esc</span></button>
+        <button class="menu-btn" id="btnCloseControls" style="width:100%;text-align:center;">Close</button>
       </div>
     </div>
 
-    <!-- UPDATE OVERLAY -->
+    <!-- UPDATE -->
     <div id="updateOverlay">
       <div class="update-card">
-        <div class="section-title">System <strong style="font-size:22px;letter-spacing:0.14em;">UPDATE</strong></div>
+        <div class="page-kicker">system</div>
+        <h2 style="font-size:20px;font-weight:800;color:#ebe6da;margin-bottom:4px;">Update</h2>
         <div class="update-versions">
           <span id="updateCurrent">v—</span>
           <span class="arrow">→</span>
           <span id="updateNext" class="hl">v—</span>
         </div>
-        <p id="updateNotes" class="update-notes">Checking for updates…</p>
+        <p id="updateNotes" class="update-notes">Checking…</p>
         <div class="update-progress-wrap">
           <div class="update-progress-bar"><div id="updateProgressFill"></div></div>
           <div class="update-progress-meta">
@@ -2113,7 +1677,7 @@
         <p id="updateError" class="update-error" hidden></p>
         <div class="update-actions">
           <button class="menu-btn primary" id="btnUpdateInstall">Download &amp; Install</button>
-          <button class="menu-btn" id="btnUpdateWebsite">Open website</button>
+          <button class="menu-btn" id="btnUpdateWebsite">Website</button>
           <button class="menu-btn ghost" id="btnUpdateLater">Later</button>
         </div>
       </div>

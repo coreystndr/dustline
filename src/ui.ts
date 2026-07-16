@@ -57,33 +57,21 @@ export function initUI(): void {
   screens.lobby = document.getElementById('lobbyScreen')!;
   screens.loadout = document.getElementById('loadoutScreen')!;
 
-  bind('btnLocalPlay', () => {
-    loadoutMode = 'local';
-    showLoadout(true);
-  });
-  bind('btnFindMatch', () => {
-    loadoutMode = 'online';
-    showLoadout(false);
-  });
-  bind('btnVsBot', () => {
-    loadoutMode = 'bot';
-    showLoadout(false);
-  });
-  bind('btnStartLoadout', () => {
-    saveStoredSkins(selectedSkins[0], selectedSkins[1]);
-    saveStoredHats(selectedHats[0], selectedHats[1]);
-    window.dispatchEvent(
-      new CustomEvent('ui:startWithLoadout', {
-        detail: {
-          loadouts: selectedLoadouts,
-          skins: selectedSkins,
-          hats: selectedHats,
-          mode: loadoutMode,
-        },
-      })
-    );
-  });
-  bind('btnLoadoutBack', () => switchScreen('start'));
+  // Play modes use the loadout already configured in the Loadout menu
+  bind('btnLocalPlay', () => startMode('local'));
+  bind('btnFindMatch', () => startMode('online'));
+  bind('btnVsBot', () => startMode('bot'));
+
+  // Dedicated loadout menu from main menu (weapons / skins / hats)
+  bind('btnOpenLoadout', () => openLoadoutMenu());
+  bind('btnLoadoutDone', () => closeLoadoutMenu());
+  bind('btnLoadoutBack', () => closeLoadoutMenu());
+  const sum = document.getElementById('mmLoadoutSum');
+  if (sum) {
+    sum.style.cursor = 'pointer';
+    sum.addEventListener('click', () => openLoadoutMenu());
+  }
+
   bind('btnControls', () => document.getElementById('controlsOverlay')!.classList.add('active'));
   bind('btnCloseControls', () => document.getElementById('controlsOverlay')!.classList.remove('active'));
   bind('btnFullscreen', () => window.dispatchEvent(new CustomEvent('ui:toggleFullscreen')));
@@ -116,24 +104,76 @@ export function initUI(): void {
   });
   bind('btnRematch', () => {
     hideEndOverlay();
-    // Keep previous mode: online → re-queue, local/bot → loadout
-    if (loadoutMode === 'online') {
-      showLoadout(false);
-    } else if (loadoutMode === 'bot') {
-      showLoadout(false);
-    } else {
-      loadoutMode = 'local';
-      showLoadout(true);
-    }
+    // Rematch with current loadout — no intermediate screen
+    startMode(loadoutMode);
   });
 
   buildLoadoutCards();
   buildSkinPickers();
   buildHatPickers();
   refreshDustBalance();
+  refreshMainMenuLoadoutSum();
   startMenuNavLoop();
   updatePadBadge();
   window.addEventListener('input:gamepad', () => updatePadBadge());
+}
+
+function persistLoadout(): void {
+  saveStoredSkins(selectedSkins[0], selectedSkins[1]);
+  saveStoredHats(selectedHats[0], selectedHats[1]);
+}
+
+function startMode(mode: 'local' | 'online' | 'bot'): void {
+  loadoutMode = mode;
+  persistLoadout();
+  window.dispatchEvent(
+    new CustomEvent('ui:startWithLoadout', {
+      detail: {
+        loadouts: selectedLoadouts,
+        skins: selectedSkins,
+        hats: selectedHats,
+        mode,
+      },
+    })
+  );
+}
+
+function openLoadoutMenu(): void {
+  ownedHats = loadOwnedHats();
+  for (let i = 0; i < 2; i++) {
+    if (!isHatOwned(selectedHats[i], ownedHats)) selectedHats[i] = 'none';
+  }
+  // Always both seats — P2 matters for local, still editable anytime
+  const p2 = document.getElementById('loadoutP2');
+  if (p2) p2.style.display = '';
+  buildHatPickers();
+  switchScreen('loadout');
+  refreshLoadoutSelection();
+  refreshDustBalance();
+}
+
+function closeLoadoutMenu(): void {
+  persistLoadout();
+  refreshMainMenuLoadoutSum();
+  refreshDustBalance();
+  switchScreen('start');
+}
+
+function formatLoadoutLine(player: 0 | 1): string {
+  const w = selectedLoadouts[player];
+  const skin = getSkin(selectedSkins[player]);
+  const hat = HAT_LIST.find((h) => h.id === selectedHats[player]);
+  const hatName = hat && hat.id !== 'none' ? hat.name : null;
+  return hatName ? `${w} · ${skin.name} · ${hatName}` : `${w} · ${skin.name}`;
+}
+
+function refreshMainMenuLoadoutSum(): void {
+  const p1 = document.getElementById('mmSumP1');
+  const p2 = document.getElementById('mmSumP2');
+  if (p1) p1.textContent = formatLoadoutLine(0);
+  if (p2) p2.textContent = formatLoadoutLine(1);
+  const d = document.getElementById('mmDustBalance');
+  if (d) d.textContent = String(getDust());
 }
 
 function updatePadBadge(): void {
@@ -279,19 +319,7 @@ function handleMenuBack(): void {
   }
 }
 
-function showLoadout(bothPlayers: boolean): void {
-  const p2 = document.getElementById('loadoutP2');
-  if (p2) p2.style.display = bothPlayers ? '' : 'none';
-  ownedHats = loadOwnedHats();
-  // Drop unequippable hats if progress was wiped
-  for (let i = 0; i < 2; i++) {
-    if (!isHatOwned(selectedHats[i], ownedHats)) selectedHats[i] = 'none';
-  }
-  buildHatPickers();
-  switchScreen('loadout');
-  refreshLoadoutSelection();
-  refreshDustBalance();
-}
+
 
 function buildLoadoutCards(): void {
   document.querySelectorAll('.weapon-cards').forEach((container) => {
@@ -312,6 +340,7 @@ function buildLoadoutCards(): void {
       btn.addEventListener('click', () => {
         selectedLoadouts[player as 0 | 1] = type;
         refreshLoadoutSelection();
+        refreshMainMenuLoadoutSum();
       });
       container.appendChild(btn);
     }
@@ -343,6 +372,7 @@ function buildSkinPickers(): void {
         selectedSkins[player] = skin.id;
         saveStoredSkins(selectedSkins[0], selectedSkins[1]);
         refreshLoadoutSelection();
+        refreshMainMenuLoadoutSum();
       });
       row.appendChild(btn);
     }
@@ -378,6 +408,7 @@ function buildHatPickers(): void {
           selectedHats[player] = hat.id;
           saveStoredHats(selectedHats[0], selectedHats[1]);
           refreshLoadoutSelection();
+          refreshMainMenuLoadoutSum();
         });
       } else {
         btn.title = `Unlock ${hat.name} — ${hat.cost} Dust`;
@@ -391,6 +422,7 @@ function buildHatPickers(): void {
             saveStoredHats(selectedHats[0], selectedHats[1]);
             buildHatPickers();
             refreshLoadoutSelection();
+            refreshMainMenuLoadoutSum();
             flashUnlockToast(`Unlocked ${hat.name}`);
           } else {
             flashUnlockToast(result.reason ?? 'Not enough Dust');
@@ -406,6 +438,8 @@ function buildHatPickers(): void {
 function refreshDustBalance(): void {
   const el = document.getElementById('dustBalance');
   if (el) el.textContent = String(getDust());
+  const mm = document.getElementById('mmDustBalance');
+  if (mm) mm.textContent = String(getDust());
 }
 
 function flashUnlockToast(msg: string): void {
@@ -475,6 +509,11 @@ export function getSelectedHats(): [HatId, HatId] {
 /** Call after match end to refresh dust UI if loadout is open later. */
 export function notifyDustChanged(): void {
   refreshDustBalance();
+  refreshMainMenuLoadoutSum();
+}
+
+export function getLoadoutMode(): 'local' | 'online' | 'bot' {
+  return loadoutMode;
 }
 
 function bind(id: string, fn: () => void): void {
@@ -500,7 +539,10 @@ export function switchScreen(screen: ScreenId): void {
   activeScreen = screen;
   menuFocusIdx = 0;
   document.querySelectorAll('.pad-focus').forEach((el) => el.classList.remove('pad-focus'));
-  if (screen === 'start') screens.start?.classList.add('active');
+  if (screen === 'start') {
+    screens.start?.classList.add('active');
+    refreshMainMenuLoadoutSum();
+  }
   if (screen === 'lobby') screens.lobby?.classList.add('active');
   if (screen === 'loadout') screens.loadout?.classList.add('active');
   if (screen === 'game') document.getElementById('hud')!.classList.add('active');
