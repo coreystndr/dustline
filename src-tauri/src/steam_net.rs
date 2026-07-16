@@ -2,11 +2,13 @@
 //! When two players search, they share a lobby and the match auto-starts.
 //!
 //! Design notes:
-//! - Continuous re-search while alone in a waiting lobby (Steam lobby list is slow).
-//! - Deterministic lobby merge: both solo hosts converge on the lowest lobby id.
+//! - Search longer before create (Steam lobby list indexes slowly).
+//! - Canonical lobby = highest Steam lobby id among solo waiting lobbies (deterministic merge).
+//! - Solo players periodically re-list and merge into the canonical lobby.
+//! - Only one create at a time (`creating` flag).
 //! - Relay network access enabled so P2P works across NAT.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -24,13 +26,20 @@ use crate::network::{
 };
 
 const CHANNEL_COUNT: u32 = 4;
-/// How often a solo host re-scans for other waiting lobbies.
-const RESCAN_MS: u64 = 2000;
+/// How often a solo player re-scans for other waiting lobbies.
+const RESCAN_MS: u64 = 1500;
+/// Pre-create search passes (with backoff).
+const SEARCH_ATTEMPTS: u32 = 12;
+/// Min/max join jitter so simultaneous Find Match don't both create immediately.
+const JITTER_MIN_MS: u64 = 400;
+const JITTER_SPAN_MS: u64 = 3500;
 
 pub struct SteamRuntime {
     pub client: Client,
     /// Monotonic token so cancelled queues don't apply stale results.
     search_gen: AtomicU64,
+    /// Prevents parallel create_lobby from find-thread + ensure_queue_lobby.
+    creating: AtomicBool,
 }
 
 impl SteamRuntime {
@@ -59,6 +68,7 @@ impl SteamRuntime {
         Ok(Self {
             client,
             search_gen: AtomicU64::new(0),
+            creating: AtomicBool::new(false),
         })
     }
 
@@ -83,6 +93,7 @@ impl SteamRuntime {
     /// Leave current lobby if any (no error if none).
     pub fn leave_current_lobby(&self, shared: &SharedGameState) {
         self.search_gen.fetch_add(1, Ordering::SeqCst);
+        self.creating.store(false, Ordering::SeqCst);
         if let Ok(mut net) = shared.network_manager.lock() {
             if let Some(id) = net.lobby_id.take() {
                 self.mm().leave_lobby(LobbyId::from_raw(id));
@@ -122,8 +133,8 @@ impl SteamRuntime {
         let steam = Arc::clone(self);
         let shared2 = Arc::clone(&shared);
         std::thread::spawn(move || {
-            // Small stagger so simultaneous queues don't both create first.
-            let jitter_ms = (steam.steam_id() % 500) as u64 + 80;
+            // Stagger simultaneous Find Match so one player creates first and the other can join.
+            let jitter_ms = JITTER_MIN_MS + (steam.steam_id() % JITTER_SPAN_MS);
             std::thread::sleep(Duration::from_millis(jitter_ms));
             if steam.search_gen.load(Ordering::SeqCst) != gen {
                 return;
@@ -141,31 +152,51 @@ impl SteamRuntime {
     }
 
     fn run_find_match(&self, shared: Arc<SharedGameState>, gen: u64) -> Result<(), String> {
-        // Several search passes before creating — Steam indexes lobbies slowly.
-        for attempt in 1..=5 {
+        // Longer search window — Steam indexes lobby metadata slowly.
+        for attempt in 1..=SEARCH_ATTEMPTS {
             if self.search_gen.load(Ordering::SeqCst) != gen {
                 return Ok(());
             }
             Self::set_status(
                 &shared,
-                format!("Searching open lobbies… ({attempt}/5)"),
+                format!("Searching open lobbies… ({attempt}/{SEARCH_ATTEMPTS})"),
             );
 
-            if let Some(msg) = self.try_join_best_open_lobby(Arc::clone(&shared), None)? {
-                if self.search_gen.load(Ordering::SeqCst) == gen {
-                    Self::set_status(&shared, msg);
+            match self.try_join_best_open_lobby(Arc::clone(&shared), None) {
+                Ok(Some(msg)) => {
+                    if self.search_gen.load(Ordering::SeqCst) == gen {
+                        Self::set_status(&shared, msg);
+                    }
+                    return Ok(());
                 }
-                return Ok(());
+                Ok(None) => {}
+                Err(e) => {
+                    eprintln!("lobby list/join error: {e}");
+                    Self::set_status(&shared, format!("Search error — retry… ({e})"));
+                }
             }
 
-            std::thread::sleep(Duration::from_millis(400 + attempt as u64 * 150));
+            // Exponential-ish backoff: ~0.6s → ~3.5s between passes
+            let sleep_ms = 600 + (attempt as u64).saturating_mul(250).min(2800);
+            std::thread::sleep(Duration::from_millis(sleep_ms));
         }
 
         if self.search_gen.load(Ordering::SeqCst) != gen {
             return Ok(());
         }
 
-        // Create public waiting lobby and keep re-scanning from poll_matchmaking.
+        // One last list before create
+        if let Ok(Some(msg)) = self.try_join_best_open_lobby(Arc::clone(&shared), None) {
+            if self.search_gen.load(Ordering::SeqCst) == gen {
+                Self::set_status(&shared, msg);
+            }
+            return Ok(());
+        }
+
+        if self.search_gen.load(Ordering::SeqCst) != gen {
+            return Ok(());
+        }
+
         Self::set_status(&shared, "No lobby found — creating public queue…");
         let msg = self.create_waiting_lobby(Arc::clone(&shared))?;
         if self.search_gen.load(Ordering::SeqCst) == gen {
@@ -174,17 +205,15 @@ impl SteamRuntime {
         Ok(())
     }
 
-    /// Join the best open DUSTLINE lobby (lowest id). Optionally skip our current lobby.
-    fn try_join_best_open_lobby(
+    /// Collect joinable solo waiting lobbies (not owned by us, not full, not playing).
+    fn collect_join_candidates(
         &self,
-        shared: Arc<SharedGameState>,
+        lobbies: &[LobbyId],
         skip_lobby: Option<u64>,
-    ) -> Result<Option<String>, String> {
-        let lobbies = self.request_open_lobbies()?;
-        let me = self.steam_id();
-
+        me: u64,
+    ) -> Vec<LobbyId> {
         let mut candidates: Vec<LobbyId> = Vec::new();
-        for lobby in lobbies {
+        for &lobby in lobbies {
             if skip_lobby == Some(lobby.raw()) {
                 continue;
             }
@@ -193,12 +222,12 @@ impl SteamRuntime {
                 .lobby_data(lobby, LOBBY_KEY_STATUS)
                 .unwrap_or("")
                 .to_string();
-            // Prefer waiting; also allow missing status (replication lag).
             if status == LOBBY_VAL_PLAYING {
                 continue;
             }
+            // Only skip when clearly full. members==0 can be a list-result quirk — still try join.
             let members = mm.lobby_member_count(lobby);
-            if members == 0 || members >= 2 {
+            if members >= 2 {
                 continue;
             }
             let owner = mm.lobby_owner(lobby);
@@ -207,8 +236,32 @@ impl SteamRuntime {
             }
             candidates.push(lobby);
         }
+        // Canonical = highest lobby id (newest + deterministic)
+        candidates.sort_by_key(|l| std::cmp::Reverse(l.raw()));
+        candidates
+    }
 
-        candidates.sort_by_key(|l| l.raw());
+    /// Join the best open DUSTLINE lobby (canonical = highest Steam lobby id).
+    /// Optionally skip our current lobby.
+    fn try_join_best_open_lobby(
+        &self,
+        shared: Arc<SharedGameState>,
+        skip_lobby: Option<u64>,
+    ) -> Result<Option<String>, String> {
+        let lobbies = self.request_open_lobbies()?;
+        let me = self.steam_id();
+        let candidates = self.collect_join_candidates(&lobbies, skip_lobby, me);
+
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+
+        eprintln!(
+            "matchmaking: list={} candidates={} best={}",
+            lobbies.len(),
+            candidates.len(),
+            candidates[0].raw()
+        );
 
         for lobby in candidates {
             match self.join_lobby_raw(lobby) {
@@ -224,7 +277,10 @@ impl SteamRuntime {
                         net.searching = true;
                         net.match_started = false;
                         net.steam_ready = true;
-                        net.status = "Found lobby — joining host…".into();
+                        net.status = format!(
+                            "Joined lobby {} (list ok) — waiting…",
+                            lobby_id.raw()
+                        );
                     }
                     {
                         let mut game = shared.game_state.lock().map_err(|e| e.to_string())?;
@@ -313,7 +369,57 @@ impl SteamRuntime {
         }
     }
 
+    fn tag_waiting_lobby(&self, lobby_id: LobbyId) {
+        // Steam set_lobby_data can fail transiently — retry a few times.
+        for _ in 0..5 {
+            let ok_game = self
+                .mm()
+                .set_lobby_data(lobby_id, LOBBY_KEY_GAME, LOBBY_VAL_GAME);
+            let ok_status =
+                self.mm()
+                    .set_lobby_data(lobby_id, LOBBY_KEY_STATUS, LOBBY_VAL_WAITING);
+            let _ = self.mm().set_lobby_joinable(lobby_id, true);
+            let _ = self
+                .mm()
+                .set_lobby_data(lobby_id, "ver", env!("CARGO_PKG_VERSION"));
+            let _ = self.mm().set_lobby_data(lobby_id, "players", "1");
+            if ok_game && ok_status {
+                return;
+            }
+            eprintln!("warning: set_lobby_data retry game={ok_game} status={ok_status}");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     fn create_waiting_lobby(&self, shared: Arc<SharedGameState>) -> Result<String, String> {
+        // Serialize creates across threads
+        if self
+            .creating
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return Ok("Create already in progress…".into());
+        }
+
+        // Another search might have filled lobby_id while we waited
+        {
+            let net = shared.network_manager.lock().map_err(|e| e.to_string())?;
+            if net.lobby_id.is_some() {
+                self.creating.store(false, Ordering::SeqCst);
+                return Ok("Already in a lobby".into());
+            }
+            if !net.searching {
+                self.creating.store(false, Ordering::SeqCst);
+                return Ok("Queue cancelled".into());
+            }
+        }
+
+        // Final list attempt right before create
+        if let Ok(Some(msg)) = self.try_join_best_open_lobby(Arc::clone(&shared), None) {
+            self.creating.store(false, Ordering::SeqCst);
+            return Ok(msg);
+        }
+
         let (tx, rx) = std::sync::mpsc::channel();
         self.mm()
             .create_lobby(LobbyType::Public, 2, move |res| {
@@ -321,34 +427,21 @@ impl SteamRuntime {
             });
 
         let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
+        let result = loop {
             if let Ok(res) = rx.try_recv() {
-                match res {
+                break match res {
                     Ok(lobby_id) => {
-                        // Tag lobby so other DUSTLINE clients can find us.
-                        let ok_game =
-                            self.mm()
-                                .set_lobby_data(lobby_id, LOBBY_KEY_GAME, LOBBY_VAL_GAME);
-                        let ok_status = self.mm().set_lobby_data(
-                            lobby_id,
-                            LOBBY_KEY_STATUS,
-                            LOBBY_VAL_WAITING,
-                        );
-                        let _ = self.mm().set_lobby_joinable(lobby_id, true);
-                        // Extra metadata for debugging in Steam overlay / lists
-                        let _ = self.mm().set_lobby_data(
-                            lobby_id,
-                            "ver",
-                            env!("CARGO_PKG_VERSION"),
-                        );
-
-                        if !ok_game || !ok_status {
-                            eprintln!("warning: set_lobby_data failed game={ok_game} status={ok_status}");
-                        }
+                        self.tag_waiting_lobby(lobby_id);
 
                         {
                             let mut net =
                                 shared.network_manager.lock().map_err(|e| e.to_string())?;
+                            // Race: someone else already joined a lobby for us
+                            if net.lobby_id.is_some() || !net.searching {
+                                self.mm().leave_lobby(lobby_id);
+                                self.creating.store(false, Ordering::SeqCst);
+                                return Ok("Queue already resolved".into());
+                            }
                             net.is_host = true;
                             net.local_player_id = 0;
                             net.lobby_id = Some(lobby_id.raw());
@@ -368,19 +461,23 @@ impl SteamRuntime {
                             game.add_player(0);
                         }
 
-                        return Ok(format!(
+                        Ok(format!(
                             "Lobby open ({}) — waiting for opponent…",
                             lobby_id.raw()
-                        ));
+                        ))
                     }
-                    Err(e) => return Err(format!("Create lobby failed: {:?}", e)),
-                }
+                    Err(e) => Err(format!("Create lobby failed: {:?}", e)),
+                };
             }
             if Instant::now() > deadline {
+                self.creating.store(false, Ordering::SeqCst);
                 return Err("Create lobby timed out — is Steam running?".into());
             }
             std::thread::sleep(Duration::from_millis(16));
-        }
+        };
+
+        self.creating.store(false, Ordering::SeqCst);
+        result
     }
 
     pub fn cancel_matchmaking(&self, shared: &SharedGameState) -> String {
@@ -392,7 +489,7 @@ impl SteamRuntime {
     }
 
     /// Poll lobby membership; when 2 players present, auto-start.
-    /// Solo hosts also re-scan and merge into a better (lower-id) lobby.
+    /// Solo players re-scan and merge into the canonical (highest-id) waiting lobby.
     pub fn poll_matchmaking(&self, shared: &SharedGameState, app: &AppHandle) {
         let (lobby_raw, is_host, searching, already) = {
             let Ok(net) = shared.network_manager.lock() else {
@@ -414,13 +511,11 @@ impl SteamRuntime {
         let lobby = LobbyId::from_raw(lobby_raw);
         let members = self.mm().lobby_members(lobby);
 
-        // Still alone: periodically try to merge into another waiting lobby.
+        // Still alone: periodically merge into the canonical open lobby.
         if members.len() < 2 {
-            if is_host {
-                self.maybe_merge_solo_host(shared, lobby_raw, app);
-            }
+            self.maybe_merge_solo_queue(shared, lobby_raw, app);
             if let Ok(mut net) = shared.network_manager.lock() {
-                if net.searching && !net.match_started {
+                if net.searching && !net.match_started && net.lobby_id == Some(lobby_raw) {
                     net.status = format!("In queue… ({}/2) lobby {}", members.len(), lobby_raw);
                 }
             }
@@ -499,13 +594,10 @@ impl SteamRuntime {
         }
     }
 
-    /// Solo host re-scan: if another waiting lobby has a lower id, leave and join it.
-    fn maybe_merge_solo_host(&self, shared: &SharedGameState, our_lobby: u64, app: &AppHandle) {
-        // Throttle with a simple time bucket on status string tick from outer loop.
-        // Use Instant stored… we use atomic last merge attempt via lobby id hash + tick in spawn thread.
-        // Cheaper: only run merge every RESCAN_MS via thread-local last time.
+    /// Solo queue re-scan: join the canonical waiting lobby (highest id) if we are not already in it.
+    fn maybe_merge_solo_queue(&self, shared: &SharedGameState, our_lobby: u64, app: &AppHandle) {
         thread_local! {
-            static LAST: std::cell::Cell<Option<Instant>> = std::cell::Cell::new(None);
+            static LAST: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
         }
         let now = Instant::now();
         let should = LAST.with(|c| {
@@ -522,55 +614,32 @@ impl SteamRuntime {
             return;
         }
 
-        // Don't block the steam pump thread for long — use short timeout list.
         let Ok(lobbies) = self.request_open_lobbies() else {
             return;
         };
         let me = self.steam_id();
-        let mut best: Option<LobbyId> = None;
-        for lobby in lobbies {
-            if lobby.raw() == our_lobby {
-                continue;
-            }
-            let mm = self.mm();
-            let status = mm
-                .lobby_data(lobby, LOBBY_KEY_STATUS)
-                .unwrap_or("")
-                .to_string();
-            if status == LOBBY_VAL_PLAYING {
-                continue;
-            }
-            let members = mm.lobby_member_count(lobby);
-            if members != 1 {
-                continue;
-            }
-            let owner = mm.lobby_owner(lobby);
-            if owner.raw() == me {
-                continue;
-            }
-            // Only merge into lower lobby id (deterministic).
-            if lobby.raw() < our_lobby {
-                match best {
-                    None => best = Some(lobby),
-                    Some(b) if lobby.raw() < b.raw() => best = Some(lobby),
-                    _ => {}
-                }
-            }
-        }
+        let candidates = self.collect_join_candidates(&lobbies, Some(our_lobby), me);
 
-        let Some(target) = best else {
+        // Canonical open lobby among *other* solo lobbies = highest id.
+        // Merge if that id is higher OR lower — always converge on max(our_id, best_other).
+        let Some(target) = candidates.first().copied() else {
             return;
         };
+
+        // Stay if we already hold the highest id among visible queue lobbies.
+        if target.raw() <= our_lobby {
+            // We are canonical (or tied). Nothing to do.
+            return;
+        }
 
         let _ = app.emit(
             "steam_status",
             format!(
-                "Merging queues → joining lobby {}…",
+                "Merging queues → joining lobby {} (canonical)…",
                 target.raw()
             ),
         );
 
-        // Leave ours then join theirs
         self.mm().leave_lobby(LobbyId::from_raw(our_lobby));
         match self.join_lobby_raw(target) {
             Ok(lobby_id) => {
@@ -583,7 +652,7 @@ impl SteamRuntime {
                     net.connected = true;
                     net.searching = true;
                     net.match_started = false;
-                    net.status = format!("Joined lobby {} — match starting…", lobby_id.raw());
+                    net.status = format!("Joined lobby {} — waiting…", lobby_id.raw());
                 }
                 if let Ok(mut game) = shared.game_state.lock() {
                     *game = crate::game::state::GameState::new();
@@ -593,12 +662,12 @@ impl SteamRuntime {
                 self.send_event(owner, &NetworkEvent::Hello { player_id: 1 });
             }
             Err(_) => {
-                // ensure_queue_lobby will recreate a public waiting lobby.
+                // Re-create only after failed merge — try join any other candidate first next tick.
                 if let Ok(mut net) = shared.network_manager.lock() {
                     net.lobby_id = None;
                     net.is_host = false;
                     net.searching = true;
-                    net.status = "Merge failed — recreating queue…".into();
+                    net.status = "Merge failed — searching again…".into();
                 }
             }
         }
@@ -753,8 +822,8 @@ impl SteamRuntime {
         }
     }
 
-    /// If searching with no lobby (e.g. after failed merge), recreate queue.
-    pub fn ensure_queue_lobby(&self, shared: &SharedGameState) {
+    /// If searching with no lobby (e.g. after failed merge), try join first, then recreate.
+    pub fn ensure_queue_lobby(&self, shared: Arc<SharedGameState>) {
         let need = {
             let Ok(net) = shared.network_manager.lock() else {
                 return;
@@ -764,15 +833,18 @@ impl SteamRuntime {
         if !need {
             return;
         }
-        // Avoid hammering create
+        if self.creating.load(Ordering::SeqCst) {
+            return;
+        }
+
         thread_local! {
-            static LAST_CREATE: std::cell::Cell<Option<Instant>> = std::cell::Cell::new(None);
+            static LAST: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
         }
         let now = Instant::now();
-        let go = LAST_CREATE.with(|c| {
+        let go = LAST.with(|c| {
             let go = match c.get() {
                 None => true,
-                Some(t) => now.duration_since(t) >= Duration::from_secs(3),
+                Some(t) => now.duration_since(t) >= Duration::from_secs(4),
             };
             if go {
                 c.set(Some(now));
@@ -783,42 +855,19 @@ impl SteamRuntime {
             return;
         }
 
-        // We need Arc for create_waiting_lobby — use a thin recreate path:
-        // only set data after create with local shared ref by reimplementing create body.
-        let (tx, rx) = std::sync::mpsc::channel();
-        self.mm()
-            .create_lobby(LobbyType::Public, 2, move |res| {
-                let _ = tx.send(res);
-            });
-        let deadline = Instant::now() + Duration::from_secs(8);
-        loop {
-            if let Ok(res) = rx.try_recv() {
-                if let Ok(lobby_id) = res {
-                    self.mm()
-                        .set_lobby_data(lobby_id, LOBBY_KEY_GAME, LOBBY_VAL_GAME);
-                    self.mm()
-                        .set_lobby_data(lobby_id, LOBBY_KEY_STATUS, LOBBY_VAL_WAITING);
-                    let _ = self.mm().set_lobby_joinable(lobby_id, true);
-                    if let Ok(mut net) = shared.network_manager.lock() {
-                        if net.searching && net.lobby_id.is_none() {
-                            net.is_host = true;
-                            net.local_player_id = 0;
-                            net.lobby_id = Some(lobby_id.raw());
-                            net.connected = true;
-                            net.status =
-                                format!("Lobby recreated ({}) — waiting…", lobby_id.raw());
-                        } else {
-                            // Race: already joined something else
-                            self.mm().leave_lobby(lobby_id);
-                        }
-                    }
-                }
-                break;
+        // Prefer joining an existing lobby over spawning another orphan.
+        if let Ok(Some(msg)) = self.try_join_best_open_lobby(Arc::clone(&shared), None) {
+            Self::set_status(&shared, msg);
+            return;
+        }
+
+        // Still alone — create (serialized)
+        match self.create_waiting_lobby(Arc::clone(&shared)) {
+            Ok(msg) => Self::set_status(&shared, msg),
+            Err(e) => {
+                eprintln!("ensure_queue_lobby create: {e}");
+                Self::set_status(&shared, format!("Recreate failed: {e}"));
             }
-            if Instant::now() > deadline {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(16));
         }
     }
 }
@@ -835,7 +884,7 @@ pub fn spawn_steam_thread(app: AppHandle, shared: Arc<SharedGameState>, steam: A
             tick += 1;
             if tick % 4 == 0 {
                 steam.poll_matchmaking(&shared, &app);
-                steam.ensure_queue_lobby(&shared);
+                steam.ensure_queue_lobby(Arc::clone(&shared));
                 if let Ok(net) = shared.network_manager.lock() {
                     if net.searching {
                         let _ = app.emit("steam_status", net.status.clone());

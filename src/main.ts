@@ -449,12 +449,35 @@ function handleLeaveLobby(): void {
 }
 
 async function handleQuit(): Promise<void> {
+  cancelBotSim();
+  isGameRunning = false;
   if (tauriInvoke) {
+    try {
+      await tauriInvoke('steam_cancel_matchmaking');
+    } catch {
+      /* ignore */
+    }
     try {
       await tauriInvoke('leave_game', { playerId: localPlayerId });
     } catch {
       /* ignore */
     }
+  }
+
+  // Tauri: process.exit (process:default). Fallback: window.close / browser.
+  try {
+    const { exit } = await import('@tauri-apps/plugin-process');
+    await exit(0);
+    return;
+  } catch {
+    /* not in Tauri or plugin missing */
+  }
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
+    await getCurrentWindow().close();
+    return;
+  } catch {
+    /* browser */
   }
   window.close();
 }

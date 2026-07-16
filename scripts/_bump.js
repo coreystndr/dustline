@@ -1,5 +1,5 @@
 ﻿const fs=require('fs');
-const v='1.0.2';
+const v='1.0.3';
 const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.version=v;
 fs.writeFileSync('package.json', JSON.stringify(pkg,null,2)+'\n');
 const conf=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')); conf.version=v;

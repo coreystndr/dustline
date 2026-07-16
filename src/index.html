@@ -85,22 +85,17 @@
       inset: 0;
       pointer-events: none;
       background:
-        radial-gradient(ellipse 70% 55% at 50% 42%, rgba(47, 106, 114, 0.35) 0%, transparent 65%),
-        radial-gradient(circle at 12% 80%, rgba(212, 98, 46, 0.1) 0%, transparent 35%),
-        radial-gradient(circle at 88% 20%, rgba(47, 127, 212, 0.08) 0%, transparent 30%),
-        linear-gradient(180deg, #142a32 0%, #0a1216 100%);
+        linear-gradient(180deg, #101f24 0%, #0a1216 55%, #070b0d 100%);
     }
 
     .screen-bg::after {
       content: "";
       position: absolute;
       inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 75%);
-      opacity: 0.6;
+      background:
+        radial-gradient(ellipse 50% 40% at 50% 0%, rgba(212, 98, 46, 0.08), transparent 60%),
+        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(0, 0, 0, 0.35), transparent 70%);
+      opacity: 1;
     }
 
     .screen-frame {
@@ -140,61 +135,351 @@
       padding: 24px;
     }
 
-    /* —— Brand —— */
-    .brand {
-      text-align: center;
-      margin-bottom: 32px;
+    /* —— Main menu (start) —— */
+    #startScreen {
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    #startScreen .screen-content {
+      max-width: none;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      display: block;
     }
 
-    .brand-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      margin-bottom: 14px;
+    .mm {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #070b0d;
     }
 
-    .brand-mark {
-      width: 36px;
-      height: 36px;
-      border: 2px solid var(--clay);
-      border-radius: 3px;
-      transform: rotate(45deg);
-      background: linear-gradient(145deg, #e07a45 0%, var(--clay) 45%, var(--clay-deep) 100%);
+    /* Horizon field — painted, not generic mesh */
+    .mm-field {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg,
+          #0e1c22 0%,
+          #132a32 28%,
+          #1a3a3f 48%,
+          #243528 58%,
+          #1a2418 68%,
+          #0d1210 100%);
+    }
+    .mm-field::before {
+      content: "";
+      position: absolute;
+      left: -10%;
+      right: -10%;
+      top: 42%;
+      height: 38%;
+      background:
+        radial-gradient(ellipse 55% 80% at 50% 0%, rgba(212, 98, 46, 0.14), transparent 70%),
+        radial-gradient(ellipse 90% 60% at 50% 100%, rgba(0, 0, 0, 0.55), transparent 70%);
+      pointer-events: none;
+    }
+    .mm-haze {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 120% 40% at 50% 100%, rgba(201, 184, 150, 0.07), transparent 55%),
+        radial-gradient(circle at 18% 30%, rgba(47, 127, 212, 0.06), transparent 28%);
+      pointer-events: none;
+    }
+    .mm-grain {
+      position: absolute;
+      inset: 0;
+      opacity: 0.055;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .mm-island {
+      position: absolute;
+      left: 50%;
+      bottom: 8%;
+      width: min(920px, 92%);
+      height: 48%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      opacity: 0.92;
+    }
+    .mm-island svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+    }
+
+    .mm-storm {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 520px;
+      height: 280px;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(212, 98, 46, 0.22);
+      border-radius: 50%;
+      pointer-events: none;
       box-shadow:
-        0 0 0 5px rgba(212, 98, 46, 0.1),
-        0 8px 20px rgba(0, 0, 0, 0.35);
-      flex-shrink: 0;
+        inset 0 0 60px rgba(212, 98, 46, 0.06),
+        0 0 0 1px rgba(0, 0, 0, 0.2);
+      animation: mm-storm 7s ease-in-out infinite;
+    }
+    .mm-storm::after {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border: 1px dashed rgba(201, 184, 150, 0.14);
+      border-radius: 50%;
+    }
+    @keyframes mm-storm {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
+      50% { transform: translate(-50%, -50%) scale(1.035); opacity: 1; }
     }
 
-    .brand h1 {
-      font-size: 52px;
-      font-weight: 800;
-      letter-spacing: 0.28em;
-      color: var(--paper);
-      text-indent: 0.28em;
-      line-height: 1;
+    .mm-vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 65% at 50% 45%, transparent 30%, rgba(0, 0, 0, 0.55) 100%),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.45) 0%, transparent 22%, transparent 78%, rgba(0, 0, 0, 0.45) 100%);
     }
 
-    .brand-tag {
+    /* Layout */
+    .mm-ui {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 0;
+      width: 100%;
+      height: 100%;
+      padding: 36px 44px 32px;
+    }
+
+    .mm-left {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 48px 28px 8px;
+      max-width: 560px;
+    }
+
+    .mm-eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      font-size: 11px;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--sand);
+      font-family: var(--mono);
+      font-size: 10px;
       font-weight: 600;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--clay);
+      margin-bottom: 18px;
     }
-    .brand-tag::before,
-    .brand-tag::after {
-      content: "";
-      width: 28px;
-      height: 1px;
-      background: var(--line-strong);
+    .mm-eyebrow i {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--clay);
+      border-radius: 1px;
     }
 
-    /* —— Buttons —— */
+    .mm-title {
+      font-size: 68px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      line-height: 0.92;
+      color: var(--paper);
+      text-indent: 0.14em;
+      margin: 0 0 16px;
+      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 18px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .mm-lede {
+      font-size: 15px;
+      line-height: 1.45;
+      color: var(--sand);
+      font-weight: 500;
+      max-width: 34ch;
+      margin: 0 0 22px;
+    }
+
+    .mm-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: rgba(242, 235, 224, 0.08);
+      border: 1px solid rgba(242, 235, 224, 0.1);
+      margin-bottom: 22px;
+      max-width: 360px;
+    }
+    .mm-stat {
+      background: rgba(8, 12, 14, 0.72);
+      padding: 12px 14px;
+    }
+    .mm-stat b {
+      display: block;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--paper);
+      margin-bottom: 3px;
+    }
+    .mm-stat span {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .mm-keys {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: rgba(201, 184, 150, 0.72);
+      line-height: 1.55;
+    }
+    .mm-keys kbd {
+      display: inline-block;
+      font: inherit;
+      font-weight: 700;
+      color: var(--paper);
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(242, 235, 224, 0.12);
+      padding: 1px 6px;
+      border-radius: 3px;
+      margin-right: 2px;
+    }
+
+    /* Right action column */
+    .mm-right {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: stretch;
+      padding: 0 8px 0 24px;
+    }
+
+    .mm-panel {
+      position: relative;
+      background: rgba(10, 14, 16, 0.82);
+      border: 1px solid rgba(242, 235, 224, 0.1);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 24px 60px rgba(0, 0, 0, 0.5);
+      padding: 22px 20px 18px;
+    }
+    .mm-panel::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--clay-deep), var(--clay) 40%, transparent 90%);
+    }
+    /* corner ticks */
+    .mm-panel::after {
+      content: "";
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      width: 10px;
+      height: 10px;
+      border-right: 1px solid rgba(212, 98, 46, 0.55);
+      border-bottom: 1px solid rgba(212, 98, 46, 0.55);
+      pointer-events: none;
+    }
+
+    .mm-panel-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding: 0 2px 12px;
+      border-bottom: 1px solid rgba(242, 235, 224, 0.08);
+    }
+    .mm-panel-head strong {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--paper);
+      font-weight: 800;
+    }
+    .mm-panel-head span {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    .mm-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mm-actions .menu-btn {
+      width: 100%;
+    }
+
+    .mm-divider {
+      height: 1px;
+      background: rgba(242, 235, 224, 0.08);
+      margin: 12px 0 10px;
+    }
+
+    .mm-utils {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .mm-utils .menu-btn {
+      padding: 11px 12px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.28);
+      box-shadow: none;
+    }
+    .mm-utils .menu-btn .btn-hint {
+      display: none;
+    }
+    .mm-utils .menu-btn.ghost {
+      grid-column: 1 / -1;
+      margin-top: 2px;
+      color: var(--muted);
+      border-style: dashed;
+    }
+
+    .mm-foot {
+      position: absolute;
+      left: 44px;
+      right: 44px;
+      bottom: 14px;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: rgba(122, 115, 104, 0.9);
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .mm-foot b {
+      color: rgba(201, 184, 150, 0.75);
+      font-weight: 600;
+    }
+
+    /* Shared buttons — flat, tactical, not glass candy */
     .menu-stack {
       display: flex;
       flex-direction: column;
@@ -205,74 +490,102 @@
     .menu-btn {
       appearance: none;
       position: relative;
-      border: 1px solid var(--line);
-      background: var(--glass);
+      border: 1px solid rgba(242, 235, 224, 0.12);
+      background: rgba(14, 18, 20, 0.88);
       color: var(--paper);
-      font: 600 13px/1 var(--font);
-      letter-spacing: 0.12em;
+      font: 600 12px/1.1 var(--font);
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      padding: 15px 22px;
+      padding: 14px 16px;
       cursor: pointer;
-      transition: background 0.14s, border-color 0.14s, transform 0.08s, box-shadow 0.14s;
+      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.06s;
       text-align: left;
-      border-radius: var(--radius);
-      box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.2);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      border-radius: 2px;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
     }
 
     .menu-btn .btn-hint {
       float: right;
+      font-family: var(--mono);
       font-size: 10px;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       color: var(--muted);
       font-weight: 600;
       margin-top: 1px;
+      text-transform: none;
     }
 
     .menu-btn:hover {
-      background: rgba(212, 98, 46, 0.14);
-      border-color: rgba(212, 98, 46, 0.45);
+      background: rgba(212, 98, 46, 0.12);
+      border-color: rgba(212, 98, 46, 0.5);
+      color: #fff4ea;
     }
+    .menu-btn:hover .btn-hint { color: rgba(255, 220, 190, 0.7); }
     .menu-btn:active { transform: translateY(1px); }
 
     .menu-btn.primary {
-      background: linear-gradient(180deg, #e07038 0%, var(--clay) 55%, var(--clay-deep) 100%);
-      border-color: rgba(255, 200, 150, 0.2);
-      color: #fff8f0;
-      box-shadow: 0 6px 20px rgba(212, 98, 46, 0.28), inset 0 1px 0 rgba(255,255,255,0.15);
+      background: var(--clay);
+      border-color: #e07a45;
+      color: #1a0c06;
+      font-weight: 800;
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.25) inset,
+        0 8px 22px rgba(212, 98, 46, 0.22);
     }
     .menu-btn.primary:hover {
-      background: linear-gradient(180deg, #ee8048 0%, #dc6a34 55%, #a8481c 100%);
-      border-color: rgba(255, 220, 180, 0.3);
+      background: #e07038;
+      border-color: #f0a070;
+      color: #140804;
     }
-    .menu-btn.primary .btn-hint { color: rgba(255, 248, 240, 0.65); }
+    .menu-btn.primary .btn-hint { color: rgba(26, 12, 6, 0.62); }
 
     .menu-btn.ghost {
       background: transparent;
-      border-color: var(--line);
+      border-color: rgba(242, 235, 224, 0.1);
       color: var(--sand);
+      box-shadow: none;
+    }
+    .menu-btn.ghost:hover {
+      border-color: rgba(242, 235, 224, 0.22);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--paper);
     }
 
+    /* legacy helpers used elsewhere */
+    .brand { text-align: center; margin-bottom: 24px; }
+    .brand h1 {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      color: var(--paper);
+      text-indent: 0.2em;
+      line-height: 1;
+    }
+    .brand-tag {
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--sand);
+      font-weight: 600;
+      margin-top: 10px;
+    }
     .menu-foot {
       position: absolute;
-      bottom: 36px;
-      left: 0;
-      right: 0;
+      bottom: 28px;
+      left: 0; right: 0;
       z-index: 2;
       text-align: center;
       font-size: 10px;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.16em;
       color: var(--muted);
       text-transform: uppercase;
     }
-
     .chip-row {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
       justify-content: center;
-      margin-top: 22px;
+      margin-top: 18px;
     }
     .chip {
       font-size: 10px;
@@ -283,7 +596,7 @@
       background: rgba(0, 0, 0, 0.28);
       border: 1px solid var(--line);
       padding: 5px 10px;
-      border-radius: 999px;
+      border-radius: 2px;
     }
 
     /* —— Panel card —— */
@@ -1289,43 +1602,114 @@
   <div id="app">
     <!-- START -->
     <div id="startScreen" class="screen active">
-      <div class="screen-bg"></div>
-      <div class="screen-frame"></div>
       <div class="screen-content">
-        <div class="brand">
-          <div class="brand-row">
-            <div class="brand-mark" aria-hidden="true"></div>
-            <h1>DUSTLINE</h1>
+        <div class="mm">
+          <div class="mm-field" aria-hidden="true"></div>
+          <div class="mm-haze" aria-hidden="true"></div>
+          <div class="mm-storm" aria-hidden="true"></div>
+          <div class="mm-island" aria-hidden="true">
+            <svg viewBox="0 0 900 420" preserveAspectRatio="xMidYMax meet">
+              <!-- water shelf -->
+              <ellipse cx="450" cy="360" rx="380" ry="42" fill="#0a1418" opacity="0.9"/>
+              <ellipse cx="450" cy="352" rx="340" ry="28" fill="#123038" opacity="0.55"/>
+              <!-- island mass -->
+              <path d="M120 340
+                C180 300 210 250 270 230
+                C310 216 340 250 390 220
+                C430 196 470 170 520 188
+                C570 206 600 160 650 190
+                C700 220 760 250 800 300
+                C830 328 820 350 780 355
+                L160 360
+                C140 358 120 350 120 340Z"
+                fill="#1c2e24"/>
+              <path d="M160 338
+                C210 300 250 268 300 255
+                C340 244 370 270 420 248
+                C460 230 500 210 545 222
+                C590 234 620 200 660 220
+                C700 240 740 268 770 308
+                C785 325 770 340 740 342
+                L180 348
+                C165 346 155 342 160 338Z"
+                fill="#2a4030"/>
+              <!-- ridge / cliffs -->
+              <path d="M300 255 L340 210 L390 240 L360 268 Z" fill="#3a4f38" opacity="0.85"/>
+              <path d="M520 200 L560 165 L600 195 L575 230 Z" fill="#354a36" opacity="0.9"/>
+              <!-- sand edge -->
+              <path d="M180 348 C260 335 340 340 450 338 C560 336 650 340 740 342 L740 355 L180 355 Z"
+                fill="#8a7350" opacity="0.35"/>
+              <!-- crates -->
+              <rect x="410" y="300" width="18" height="14" fill="#5a4630" transform="rotate(-6 419 307)"/>
+              <rect x="560" y="290" width="16" height="12" fill="#4a3a28" transform="rotate(8 568 296)"/>
+              <!-- beacon -->
+              <rect x="446" y="248" width="6" height="42" fill="#3a2a1a"/>
+              <circle cx="449" cy="246" r="5" fill="#d4622e"/>
+              <circle cx="449" cy="246" r="10" fill="none" stroke="#d4622e" stroke-opacity="0.35" stroke-width="1"/>
+            </svg>
           </div>
-          <div class="brand-tag">1v1 Island Duel</div>
-        </div>
-        <div class="menu-stack">
-          <button class="menu-btn primary" id="btnFindMatch">
-            Find Match <span class="btn-hint">Steam</span>
-          </button>
-          <button class="menu-btn" id="btnVsBot">
-            Test vs Bot <span class="btn-hint">Solo debug</span>
-          </button>
-          <button class="menu-btn" id="btnLocalPlay">
-            Local Duel <span class="btn-hint">Hotseat</span>
-          </button>
-          <button class="menu-btn" id="btnControls">Controls</button>
-          <button class="menu-btn" id="btnFullscreen">
-            Fullscreen <span class="btn-hint">F11</span>
-          </button>
-          <button class="menu-btn" id="btnCheckUpdate">
-            Check Updates <span class="btn-hint">Auto</span>
-          </button>
-          <button class="menu-btn ghost" id="btnQuit">Quit</button>
-        </div>
-        <div class="chip-row">
-          <span class="chip">Best of 5</span>
-          <span class="chip">First to 3</span>
-          <span class="chip">Storm</span>
-          <span class="chip">Center = more dmg</span>
+          <div class="mm-grain" aria-hidden="true"></div>
+          <div class="mm-vignette" aria-hidden="true"></div>
+
+          <div class="mm-ui">
+            <div class="mm-left">
+              <div class="mm-eyebrow"><i></i> Island · 1v1 · Live fire</div>
+              <h1 class="mm-title">DUSTLINE</h1>
+              <p class="mm-lede">
+                Two operators. One shrinking ring. First to three rounds walks off the island.
+              </p>
+              <div class="mm-stats">
+                <div class="mm-stat"><b>Bo5</b><span>First to 3</span></div>
+                <div class="mm-stat"><b>Storm</b><span>Closes in</span></div>
+                <div class="mm-stat"><b>Center</b><span>Hits harder</span></div>
+              </div>
+              <div class="mm-keys">
+                <kbd>WASD</kbd> move
+                · <kbd>Mouse</kbd> aim
+                · <kbd>LMB</kbd> fire
+                · <kbd>G</kbd> nade
+                · <kbd>Shift</kbd> dash
+              </div>
+            </div>
+
+            <div class="mm-right">
+              <div class="mm-panel">
+                <div class="mm-panel-head">
+                  <strong>Deploy</strong>
+                  <span>select mode</span>
+                </div>
+                <div class="mm-actions">
+                  <button class="menu-btn primary" id="btnFindMatch" type="button">
+                    Find Match <span class="btn-hint">Steam</span>
+                  </button>
+                  <button class="menu-btn" id="btnVsBot" type="button">
+                    Vs Bot <span class="btn-hint">Solo</span>
+                  </button>
+                  <button class="menu-btn" id="btnLocalPlay" type="button">
+                    Local Duel <span class="btn-hint">2P</span>
+                  </button>
+                </div>
+                <div class="mm-divider"></div>
+                <div class="mm-utils">
+                  <button class="menu-btn" id="btnControls" type="button">Controls</button>
+                  <button class="menu-btn" id="btnFullscreen" type="button">
+                    Fullscreen <span class="btn-hint">F11</span>
+                  </button>
+                  <button class="menu-btn" id="btnCheckUpdate" type="button">
+                    Updates <span class="btn-hint">Auto</span>
+                  </button>
+                  <button class="menu-btn ghost" id="btnQuit" type="button">Quit</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mm-foot">
+            <span>com.dustline.game</span>
+            <span><b>Ready</b> · loadout after deploy</span>
+          </div>
         </div>
       </div>
-      <div class="menu-foot">WASD · Mouse · G grenade · F11 fullscreen · Sniper still = laser</div>
     </div>
 
     <!-- LOADOUT -->
