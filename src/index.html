@@ -879,6 +879,17 @@
       50% { transform: scale(1.1); opacity: 1; }
     }
 
+    .lobby-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .lobby-actions .menu-btn {
+      width: 100%;
+      text-align: center;
+    }
+
     #lobbyInfo {
       color: var(--paper);
       font-size: 15px;
@@ -1756,7 +1767,12 @@
           <p id="lobbyInfo">Searching for opponent…</p>
           <p id="lobbyStatus"></p>
           <div class="queue-log" id="queueLog" aria-live="polite"></div>
-          <button class="menu-btn ghost" id="btnLeaveLobby" style="width:100%;text-align:center;">Cancel</button>
+          <div class="lobby-actions">
+            <button class="menu-btn primary" id="btnInviteFriends" type="button">
+              Invite Friend <span class="btn-hint">Steam</span>
+            </button>
+            <button class="menu-btn ghost" id="btnLeaveLobby" type="button">Cancel</button>
+          </div>
         </div>
       </div>
     </div>

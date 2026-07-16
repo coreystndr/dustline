@@ -168,6 +168,7 @@ fn main() {
             commands::steam_status,
             commands::steam_find_match,
             commands::steam_cancel_matchmaking,
+            commands::steam_invite_friends,
             commands::steam_create_lobby,
             commands::steam_join_lobby,
         ])

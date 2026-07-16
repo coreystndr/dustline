@@ -15,8 +15,8 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use steamworks::networking_types::{NetworkingIdentity, SendFlags};
 use steamworks::{
-    Client, DistanceFilter, LobbyId, LobbyKey, LobbyListFilter, LobbyType, SteamId, StringFilter,
-    StringFilterKind,
+    Client, DistanceFilter, GameLobbyJoinRequested, LobbyId, LobbyKey, LobbyListFilter, LobbyType,
+    SteamId, StringFilter, StringFilterKind,
 };
 use tauri::{AppHandle, Emitter};
 
@@ -550,6 +550,127 @@ impl SteamRuntime {
         "Matchmaking cancelled".into()
     }
 
+    /// Opens Steam overlay friend-invite dialog for the current lobby.
+    pub fn invite_friends(&self, shared: &SharedGameState) -> Result<String, String> {
+        let lobby_raw = {
+            let net = shared
+                .network_manager
+                .lock()
+                .map_err(|e| e.to_string())?;
+            net.lobby_id
+        };
+        let Some(lobby_raw) = lobby_raw else {
+            return Err(
+                "No lobby yet — wait until the queue shows a lobby id, then invite.".into(),
+            );
+        };
+        let lobby = LobbyId::from_raw(lobby_raw);
+        // Ensure friends can join (host only succeeds)
+        let _ = self.mm().set_lobby_joinable(lobby, true);
+        self.tag_waiting_lobby(lobby);
+        // Rich presence so friends see "In DUSTLINE"
+        let _ = self
+            .client
+            .friends()
+            .set_rich_presence("status", Some("In DUSTLINE queue"));
+        let _ = self.client.friends().set_rich_presence(
+            "connect",
+            Some(&format!("+connect_lobby {lobby_raw}")),
+        );
+        self.client.friends().activate_invite_dialog(lobby);
+        Self::set_status(
+            shared,
+            format!("Invite dialog open — lobby {lobby_raw}"),
+        );
+        Ok(format!(
+            "Steam invite opened for lobby {lobby_raw}. Pick a friend in the overlay."
+        ))
+    }
+
+    /// Join a lobby from a Steam friend invite / overlay join request.
+    pub fn accept_lobby_invite(
+        self: &Arc<Self>,
+        shared: Arc<SharedGameState>,
+        app: &AppHandle,
+        lobby: LobbyId,
+    ) {
+        let steam = Arc::clone(self);
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let gen = steam.search_gen.fetch_add(1, Ordering::SeqCst) + 1;
+            // Leave any current queue first (without bumping gen again)
+            if let Ok(mut net) = shared.network_manager.lock() {
+                if let Some(id) = net.lobby_id.take() {
+                    steam.mm().leave_lobby(LobbyId::from_raw(id));
+                }
+                net.searching = true;
+                net.match_started = false;
+                net.steam_ready = true;
+                net.status = format!("Joining friend lobby {}…", lobby.raw());
+            }
+            let _ = app.emit(
+                "steam_status",
+                format!("Joining invite lobby {}…", lobby.raw()),
+            );
+
+            match steam.join_lobby_raw(lobby) {
+                Ok(lobby_id) => {
+                    if steam.search_gen.load(Ordering::SeqCst) != gen {
+                        steam.mm().leave_lobby(lobby_id);
+                        return;
+                    }
+                    let owner = steam.mm().lobby_owner(lobby_id);
+                    let me = steam.steam_id();
+                    let is_host = owner.raw() == me;
+                    {
+                        if let Ok(mut net) = shared.network_manager.lock() {
+                            net.is_host = is_host;
+                            net.local_player_id = if is_host { 0 } else { 1 };
+                            net.lobby_id = Some(lobby_id.raw());
+                            net.remote_steam_id = if is_host {
+                                None
+                            } else {
+                                Some(owner.raw())
+                            };
+                            net.connected = true;
+                            net.searching = true;
+                            net.match_started = false;
+                            net.steam_ready = true;
+                            net.status = format!(
+                                "In lobby {} — waiting for match…",
+                                lobby_id.raw()
+                            );
+                        }
+                    }
+                    {
+                        if let Ok(mut game) = shared.game_state.lock() {
+                            *game = crate::game::state::GameState::new();
+                            game.add_player(0);
+                            if !is_host {
+                                game.add_player(1);
+                            }
+                        }
+                    }
+                    if !is_host {
+                        steam.send_event(owner, &NetworkEvent::Hello { player_id: 1 });
+                    }
+                    steam.tag_waiting_lobby(lobby_id);
+                    let _ = app.emit(
+                        "steam_status",
+                        format!("Joined friend lobby {}", lobby_id.raw()),
+                    );
+                }
+                Err(()) => {
+                    let _ = app.emit("steam_status", "Failed to join invite lobby");
+                    if let Ok(mut net) = shared.network_manager.lock() {
+                        net.searching = false;
+                        net.status = "Invite join failed".into();
+                    }
+                }
+            }
+        });
+    }
+
     /// Poll lobby membership; when 2 players present, auto-start.
     /// Solo players re-scan and merge into the canonical (highest-id) waiting lobby.
     pub fn poll_matchmaking(&self, shared: &SharedGameState, app: &AppHandle) {
@@ -948,6 +1069,23 @@ impl SteamRuntime {
 }
 
 pub fn spawn_steam_thread(app: AppHandle, shared: Arc<SharedGameState>, steam: Arc<SteamRuntime>) {
+    // Friend invites → join their lobby automatically
+    {
+        let steam_cb = Arc::clone(&steam);
+        let shared_cb = Arc::clone(&shared);
+        let app_cb = app.clone();
+        let handle = steam.client.register_callback(move |ev: GameLobbyJoinRequested| {
+            eprintln!(
+                "invite join requested: lobby={} from={}",
+                ev.lobby_steam_id.raw(),
+                ev.friend_steam_id.raw()
+            );
+            steam_cb.accept_lobby_invite(Arc::clone(&shared_cb), &app_cb, ev.lobby_steam_id);
+        });
+        // Keep callback registered for process lifetime
+        std::mem::forget(handle);
+    }
+
     std::thread::spawn(move || {
         let mut tick: u64 = 0;
         loop {

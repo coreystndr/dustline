@@ -185,6 +185,18 @@ pub fn steam_cancel_matchmaking(
     Ok(steam.cancel_matchmaking(state.inner()))
 }
 
+/// Open Steam overlay invite dialog for the current matchmaking lobby.
+#[tauri::command]
+pub fn steam_invite_friends(
+    state: State<'_, Arc<SharedGameState>>,
+    steam: State<'_, Option<Arc<SteamRuntime>>>,
+) -> Result<String, String> {
+    let steam = steam.inner().clone().ok_or_else(|| {
+        "Steam not available. Start Steam and relaunch.".to_string()
+    })?;
+    steam.invite_friends(state.inner())
+}
+
 /// Kept for debugging / manual lobbies
 #[tauri::command]
 pub fn steam_create_lobby(

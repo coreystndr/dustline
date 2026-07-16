@@ -1,4 +1,4 @@
-// === DUSTLINE Renderer — clean art + rich VFX ===
+// === DUSTLINE Renderer — Zombs-Royale-inspired cartoon art ===
 
 import {
   GameState,
@@ -18,37 +18,39 @@ import {
   getOverlayParticles,
 } from './combatFx';
 
+/** Zombs-like: bright flat colors, thick outlines, cartoon arena */
 const C = {
-  void: '#081014',
-  waterDeep: '#0f2a32',
-  water: '#1e4a55',
-  waterLite: '#2f6a72',
-  foam: 'rgba(200, 230, 230, 0.08)',
-  sand: '#cbb892',
-  sandDark: '#a48c68',
-  sandLite: '#dcc9a4',
-  grass: '#4f8a45',
-  grassDark: '#3a6a34',
-  grassLite: '#6aa858',
-  dirt: 'rgba(140, 110, 70, 0.28)',
-  crate: '#8a6a28',
-  crateLite: '#b8923a',
-  crateDark: '#5c4518',
-  rock: '#6e6862',
-  rockLite: '#8e8882',
-  rockDark: '#4a4540',
-  bush: '#2f6a3c',
-  bushLite: '#4a8f58',
-  p1: '#d4622e',
-  p1Dark: '#9a3f16',
-  p1Lite: '#f08a52',
-  p2: '#2f7fd4',
-  p2Dark: '#1a4f8a',
-  p2Lite: '#6aa8ef',
-  zoneFill: 'rgba(70, 30, 110, 0.22)',
-  zoneEdge: 'rgba(170, 110, 255, 0.65)',
-  cream: '#f4efe4',
-  ink: '#12100e',
+  void: '#5ec8f0',
+  waterDeep: '#2a9fd4',
+  water: '#4eb8e8',
+  waterLite: '#7ad0f5',
+  foam: 'rgba(255, 255, 255, 0.45)',
+  sand: '#f0d878',
+  sandDark: '#d4b84a',
+  sandLite: '#ffe99a',
+  grass: '#6ecf4a',
+  grassDark: '#4aad32',
+  grassLite: '#8fe35e',
+  dirt: 'rgba(196, 160, 80, 0.35)',
+  crate: '#c9a04a',
+  crateLite: '#e8c86a',
+  crateDark: '#8a6a28',
+  rock: '#9a9aa8',
+  rockLite: '#c0c0cc',
+  rockDark: '#6a6a78',
+  bush: '#2e9a3c',
+  bushLite: '#4ecf5a',
+  p1: '#ff5a3c',
+  p1Dark: '#c43020',
+  p1Lite: '#ff8a70',
+  p2: '#3c8cff',
+  p2Dark: '#1a58c8',
+  p2Lite: '#7ab0ff',
+  zoneFill: 'rgba(40, 120, 220, 0.18)',
+  zoneEdge: 'rgba(80, 180, 255, 0.95)',
+  cream: '#ffffff',
+  ink: '#1a1a22',
+  outline: '#1a1a22',
 };
 
 const BASE_ZOOM = 1.55;
@@ -109,69 +111,59 @@ function buildIslandTexture(): void {
   const g = islandCanvas.getContext('2d')!;
   const rnd = seeded(77);
 
-  // Deep void + water
+  // Bright cartoon sky / water (Zombs-style day map)
   g.fillStyle = C.void;
   g.fillRect(0, 0, ARENA_W, ARENA_H);
 
-  const water = g.createRadialGradient(ISLAND_CX, ISLAND_CY, 160, ISLAND_CX, ISLAND_CY, 520);
-  water.addColorStop(0, C.waterLite);
-  water.addColorStop(0.4, C.water);
-  water.addColorStop(0.75, C.waterDeep);
-  water.addColorStop(1, C.void);
-  g.fillStyle = water;
-  g.fillRect(0, 0, ARENA_W, ARENA_H);
-
-  // Soft foam rings
-  for (let r = 350; r < 480; r += 22) {
-    g.beginPath();
-    g.arc(ISLAND_CX + Math.sin(r) * 4, ISLAND_CY, r, 0, Math.PI * 2);
-    g.strokeStyle = C.foam;
-    g.lineWidth = 3;
-    g.stroke();
-  }
-
-  // Sand rim with soft edge
+  g.fillStyle = C.water;
   g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 12, 0, Math.PI * 2);
+  g.arc(ISLAND_CX, ISLAND_CY, 500, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = C.waterLite;
+  g.beginPath();
+  g.arc(ISLAND_CX - 20, ISLAND_CY - 30, 280, 0, Math.PI * 2);
+  g.fill();
+
+  // Foam ring
+  g.beginPath();
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 22, 0, Math.PI * 2);
+  g.strokeStyle = C.foam;
+  g.lineWidth = 8;
+  g.stroke();
+
+  // Sand rim (flat)
+  g.beginPath();
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 14, 0, Math.PI * 2);
   g.fillStyle = C.sand;
   g.fill();
-
-  // Sand highlight arc
-  g.beginPath();
-  g.arc(ISLAND_CX - 20, ISLAND_CY - 30, ISLAND_R - 6, -0.8, 0.9);
-  g.strokeStyle = C.sandLite;
-  g.lineWidth = 10;
-  g.globalAlpha = 0.35;
+  g.strokeStyle = C.outline;
+  g.lineWidth = 3.5;
   g.stroke();
-  g.globalAlpha = 1;
 
-  // Grass disc
+  // Grass disc — flat bright green
   g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R - 16, 0, Math.PI * 2);
-  const grassGrad = g.createRadialGradient(ISLAND_CX - 40, ISLAND_CY - 50, 40, ISLAND_CX, ISLAND_CY, ISLAND_R);
-  grassGrad.addColorStop(0, C.grassLite);
-  grassGrad.addColorStop(0.55, C.grass);
-  grassGrad.addColorStop(1, C.grassDark);
-  g.fillStyle = grassGrad;
+  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R - 12, 0, Math.PI * 2);
+  g.fillStyle = C.grass;
   g.fill();
+  g.strokeStyle = C.outline;
+  g.lineWidth = 3;
+  g.stroke();
 
-  // Grass patches
-  for (let i = 0; i < 220; i++) {
+  // Checker-ish grass blobs (cartoon patches)
+  for (let i = 0; i < 80; i++) {
     const a = rnd() * Math.PI * 2;
-    const rr = Math.sqrt(rnd()) * (ISLAND_R - 36);
+    const rr = Math.sqrt(rnd()) * (ISLAND_R - 40);
     const x = ISLAND_CX + Math.cos(a) * rr;
     const y = ISLAND_CY + Math.sin(a) * rr;
-    g.fillStyle = rnd() > 0.55 ? C.grassDark : C.grassLite;
-    g.globalAlpha = 0.25 + rnd() * 0.35;
+    g.fillStyle = rnd() > 0.5 ? C.grassLite : C.grassDark;
     g.beginPath();
-    g.ellipse(x, y, 6 + rnd() * 16, 4 + rnd() * 10, rnd() * Math.PI, 0, Math.PI * 2);
+    g.ellipse(x, y, 10 + rnd() * 18, 8 + rnd() * 14, rnd() * Math.PI, 0, Math.PI * 2);
     g.fill();
   }
-  g.globalAlpha = 1;
 
-  // Dirt paths (soft)
-  g.strokeStyle = C.dirt;
-  g.lineWidth = 26;
+  // Dirt paths
+  g.strokeStyle = '#c4a050';
+  g.lineWidth = 28;
   g.lineCap = 'round';
   g.beginPath();
   g.moveTo(230, 360);
@@ -181,37 +173,14 @@ function buildIslandTexture(): void {
   g.moveTo(640, 170);
   g.quadraticCurveTo(600, 360, 640, 550);
   g.stroke();
-
-  // Path center dust
-  g.strokeStyle = 'rgba(180, 150, 100, 0.12)';
-  g.lineWidth = 10;
+  g.strokeStyle = C.outline;
+  g.lineWidth = 2.5;
+  g.globalAlpha = 0.25;
   g.beginPath();
-  g.moveTo(240, 360);
-  g.quadraticCurveTo(640, 305, 1040, 360);
+  g.moveTo(230, 360);
+  g.quadraticCurveTo(640, 300, 1050, 360);
   g.stroke();
-
-  // Sand edge outline
-  g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R + 1, 0, Math.PI * 2);
-  g.strokeStyle = C.sandDark;
-  g.lineWidth = 5;
-  g.stroke();
-  g.beginPath();
-  g.arc(ISLAND_CX, ISLAND_CY, ISLAND_R - 14, 0, Math.PI * 2);
-  g.strokeStyle = 'rgba(60, 80, 40, 0.25)';
-  g.lineWidth = 3;
-  g.stroke();
-
-  // Subtle film grain
-  const img = g.getImageData(0, 0, ARENA_W, ARENA_H);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4 * 7) {
-    const n = (rnd() - 0.5) * 10;
-    d[i] = Math.min(255, Math.max(0, d[i] + n));
-    d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + n));
-    d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + n));
-  }
-  g.putImageData(img, 0, 0);
+  g.globalAlpha = 1;
 }
 
 function buildPropLayer(): void {
@@ -245,31 +214,18 @@ function roundRectPath(
 }
 
 function drawCrate(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  // Shadow
-  g.fillStyle = 'rgba(0,0,0,0.28)';
-  roundRectPath(g, x + 3, y + 4, w, h, 4);
+  g.fillStyle = 'rgba(0,0,0,0.2)';
+  roundRectPath(g, x + 3, y + 4, w, h, 6);
   g.fill();
-
-  // Body
-  const grad = g.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, C.crateLite);
-  grad.addColorStop(0.4, C.crate);
-  grad.addColorStop(1, C.crateDark);
-  g.fillStyle = grad;
-  roundRectPath(g, x, y, w, h, 4);
+  g.fillStyle = C.crate;
+  roundRectPath(g, x, y, w, h, 6);
   g.fill();
-
-  // Top lip
-  g.fillStyle = 'rgba(255,255,255,0.12)';
-  g.fillRect(x + 3, y + 3, w - 6, 4);
-
-  // Frame
-  g.strokeStyle = 'rgba(40, 28, 10, 0.55)';
-  g.lineWidth = 2;
-  g.strokeRect(x + 5, y + 5, w - 10, h - 10);
-
-  // X straps
-  g.strokeStyle = 'rgba(60, 40, 12, 0.5)';
+  g.strokeStyle = C.outline;
+  g.lineWidth = 2.5;
+  g.stroke();
+  g.fillStyle = C.crateLite;
+  g.fillRect(x + 4, y + 4, w - 8, 5);
+  g.strokeStyle = C.crateDark;
   g.lineWidth = 2;
   g.beginPath();
   g.moveTo(x + 8, y + 8);
@@ -280,30 +236,26 @@ function drawCrate(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 }
 
 function drawRock(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-  g.fillStyle = 'rgba(0,0,0,0.25)';
-  roundRectPath(g, x + 3, y + 4, w, h, 8);
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  roundRectPath(g, x + 3, y + 4, w, h, 12);
   g.fill();
-
-  const grad = g.createLinearGradient(x, y, x + w, y + h);
-  grad.addColorStop(0, C.rockLite);
-  grad.addColorStop(0.5, C.rock);
-  grad.addColorStop(1, C.rockDark);
-  g.fillStyle = grad;
-  roundRectPath(g, x, y, w, h, 8);
+  g.fillStyle = C.rock;
+  roundRectPath(g, x, y, w, h, 12);
   g.fill();
-
-  g.fillStyle = 'rgba(255,255,255,0.12)';
+  g.strokeStyle = C.outline;
+  g.lineWidth = 2.5;
+  g.stroke();
+  g.fillStyle = C.rockLite;
   g.beginPath();
-  g.ellipse(x + w * 0.35, y + h * 0.3, w * 0.2, h * 0.12, -0.3, 0, Math.PI * 2);
+  g.ellipse(x + w * 0.35, y + h * 0.3, w * 0.18, h * 0.12, -0.3, 0, Math.PI * 2);
   g.fill();
 }
 
 function drawBush(g: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number): void {
-  g.fillStyle = 'rgba(0,0,0,0.18)';
+  g.fillStyle = 'rgba(0,0,0,0.15)';
   g.beginPath();
-  g.ellipse(cx + 1, cy + 4, w / 2, h / 2.4, 0, 0, Math.PI * 2);
+  g.ellipse(cx + 1, cy + 5, w / 2, h / 2.5, 0, 0, Math.PI * 2);
   g.fill();
-
   const blobs = [
     [0, 0, 0.55],
     [-0.28, -0.1, 0.38],
@@ -311,15 +263,16 @@ function drawBush(g: CanvasRenderingContext2D, cx: number, cy: number, w: number
     [0.05, -0.28, 0.32],
   ];
   for (const [ox, oy, s] of blobs) {
-    const grad = g.createRadialGradient(
-      cx + ox * w - 2, cy + oy * h - 2, 1,
-      cx + ox * w, cy + oy * h, (w * s) / 1.2
-    );
-    grad.addColorStop(0, C.bushLite);
-    grad.addColorStop(1, C.bush);
-    g.fillStyle = grad;
+    g.fillStyle = C.bush;
     g.beginPath();
     g.ellipse(cx + ox * w, cy + oy * h, (w * s) / 1.1, (h * s) / 1.1, 0, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = C.outline;
+    g.lineWidth = 2;
+    g.stroke();
+    g.fillStyle = C.bushLite;
+    g.beginPath();
+    g.ellipse(cx + ox * w - 2, cy + oy * h - 2, (w * s) / 3, (h * s) / 3.5, 0, 0, Math.PI * 2);
     g.fill();
   }
 }
@@ -701,12 +654,13 @@ export function render(deltaTime: number): void {
 }
 
 function drawVignette(): void {
+  // Soft bright vignette — keep map feeling open like Zombs
   const g = ctx.createRadialGradient(
-    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.25,
-    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.72
+    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.35,
+    ARENA_W / 2, ARENA_H / 2, ARENA_H * 0.85
   );
   g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(1, 'rgba(0,0,0,0.38)');
+  g.addColorStop(1, 'rgba(20, 60, 90, 0.12)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, ARENA_W, ARENA_H);
 }
@@ -781,22 +735,22 @@ function drawHitmarker(): void {
 }
 
 function drawAimCursor(): void {
-  // Always show a clean screen crosshair near mouse… we don't have mouse here;
-  // show subtle center reticle when following single player
   if (followPlayerId === null) return;
   const cx = ARENA_W / 2;
   const cy = ARENA_H / 2;
   ctx.save();
-  ctx.strokeStyle = 'rgba(244,239,228,0.28)';
+  ctx.strokeStyle = 'rgba(26,26,34,0.55)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(cx, cy, 7, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx - 12, cy); ctx.lineTo(cx - 5, cy);
-  ctx.moveTo(cx + 5, cy); ctx.lineTo(cx + 12, cy);
-  ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy - 5);
-  ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + 12);
+  ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 5, cy);
+  ctx.moveTo(cx + 5, cy); ctx.lineTo(cx + 14, cy);
+  ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy - 5);
+  ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + 14);
   ctx.stroke();
   ctx.restore();
 }
@@ -1271,3 +1225,4 @@ export function clearCanvas(): void {
     nextState = null;
   }
 }
+                                                                               

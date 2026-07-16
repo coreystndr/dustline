@@ -1,15 +1,19 @@
 {
-  "version": "1.0.4",
-  "notes": "Combat feedback: hitmarker (white/gold/red), floating damage numbers, hurt flash, impact VFX. Works local, bot, and online.",
-  "pub_date": "2026-07-16T03:21:06.117Z",
-  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.4_x64-setup.exe",
+  "version": "1.0.5",
+  "notes": "Matchmaking: Invite Friend button opens Steam overlay. Friends join via invite; auto-start at 2/2. Hitmarkers + new menu included.",
+  "pub_date": "2026-07-16T03:27:29.634Z",
+  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.5_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSHQrdkhaSCtWeWtaRXBha0s2b2p0S2VBLy9xcFJrM1FNUmNHYnRUcC96enhNNi9PV3E4c3o1TFBTaHpKSkJ6US9hNHNtL0hCWFRWNlIxVm1SZmc2NXdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTcyMDU0CWZpbGU6RFVTVExJTkVfMS4wLjRfeDY0LXNldHVwLmV4ZQp4TEhDODg1dUVqMzN1RUsxZU12VG4xcFpvRDFkWTIwQi82cWF3aU1XTkhnUjVwV3hyTDMxQm05K3hyZ3JkcHBOOVBMTnphVHZwZ29uZk45TnptZE9BZz09Cg==",
-      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSG4xclhQeVFtYmRHcjgvTGdwTWZxR09RSk16cmxIWGtVbGZyOXErTXArV0tJaGZ5amRScmVHMlZoMEFsbHZlc3hPUlNoVTBKQkRxNERNVEhZOTA0NkF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTcyNDI0CWZpbGU6RFVTVExJTkVfMS4wLjVfeDY0LXNldHVwLmV4ZQpHSGZFRmswaGNrbkxJTG9wRjRBejFCeGhKUEZFeWVaczgzQ2NUMDdaVk93UGo4a1p6ZmRVQmFyVU92aTB0N0ZNQ2tBbzhIaTJKOGp5NFBPd0Z1TmREQT09Cg==",
+      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.5_x64-setup.exe"
     }
   },
   "history": [
+    {
+      "version": "1.0.4",
+      "notes": "Hitmarker + damage numbers"
+    },
     {
       "version": "1.0.3",
       "notes": "New main menu"

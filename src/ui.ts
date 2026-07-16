@@ -69,6 +69,9 @@ export function initUI(): void {
   bind('btnUpdateLater', () => window.dispatchEvent(new CustomEvent('ui:updateLater')));
   bind('btnUpdateWebsite', () => window.dispatchEvent(new CustomEvent('ui:openWebsite')));
   bind('btnQuit', () => window.dispatchEvent(new CustomEvent('ui:quit')));
+  bind('btnInviteFriends', () => {
+    window.dispatchEvent(new CustomEvent('ui:inviteFriends'));
+  });
   bind('btnLeaveLobby', () => {
     switchScreen('start');
     window.dispatchEvent(new CustomEvent('ui:leaveLobby'));

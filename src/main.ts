@@ -223,6 +223,9 @@ function setupEvents(): void {
     }
   }) as EventListener);
   window.addEventListener('ui:leaveLobby', handleLeaveLobby);
+  window.addEventListener('ui:inviteFriends', () => {
+    void handleInviteFriends();
+  });
   window.addEventListener('ui:resume', () => undefined);
   window.addEventListener('ui:quit', handleQuit);
   window.addEventListener('ui:backToMenu', handleBackToMenu);
@@ -435,6 +438,22 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+async function handleInviteFriends(): Promise<void> {
+  if (!tauriInvoke) {
+    appendQueueLog('Invite needs desktop + Steam', 'err');
+    return;
+  }
+  try {
+    appendQueueLog('Opening Steam invite dialog…', 'info');
+    const msg = String(await tauriInvoke('steam_invite_friends'));
+    appendQueueLog(msg, 'ok');
+    updateLobbyStatus(msg);
+  } catch (e) {
+    appendQueueLog(String(e), 'err');
+    updateLobbyStatus(String(e));
+  }
+}
+
 async function handleFindMatch(_primary?: WeaponType): Promise<void> {
   cancelBotSim();
   isLocalPlay = false;
@@ -463,9 +482,10 @@ async function handleFindMatch(_primary?: WeaponType): Promise<void> {
     const result = await tauriInvoke('steam_find_match');
     const msg = String(result);
     updateLobbyStatus(msg);
-    updateLobbyInfo('In queue — both players must click Find Match. Match starts at 2/2.');
+    updateLobbyInfo('In queue — invite a friend or wait for auto-match (2/2).');
     appendQueueLog(msg, 'ok');
     appendQueueLog('Searching worldwide lobbies + waiting for opponent…', 'info');
+    appendQueueLog('Tip: Invite Friend opens the Steam overlay once a lobby exists', 'info');
     appendQueueLog('Keep this screen open. Cancel aborts the queue.', 'warn');
   } catch (e) {
     updateLobbyStatus('Matchmaking failed');
