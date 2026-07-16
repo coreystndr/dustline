@@ -1,19 +1,23 @@
 {
-  "version": "1.0.9",
-  "notes": "Matchmaking fix: staggered create by Steam ID, multi-strategy lobby list union, aggressive dual-lobby merge + requeue so two searchers find each other.",
-  "pub_date": "2026-07-16T04:26:45.846Z",
-  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.9_x64-setup.exe",
+  "version": "1.0.10",
+  "notes": "v1.0.10: Matchmaking reliability (staggered create, lobby list union, dual-lobby merge/requeue) + multiplayer wait-for-player / P2 join / Best of 5. Both players need this build.",
+  "pub_date": "2026-07-16T04:29:28.580Z",
+  "installer_url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.10_x64-setup.exe",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSHQ3V0xObjlRRmFWOTRYR1lFTnRrNGptQTNkdzhsdnJVc2VjNUUzMWtkbWNaVkNIaTYyWi9hZU03ckk3STB5cTBZaUxmbTFzUExidGJkRUxBUER4Y3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTc1OTg4CWZpbGU6RFVTVExJTkVfMS4wLjlfeDY0LXNldHVwLmV4ZQpFNGUxVzF6STBUcm1FMjd5NlJMTVozVWpBN2QyV2ZiakhmbUcxRWJNaXFLdWJya0xnWUNSVDhvR3BuV3BWeTBsQ3h2VXVjaHhUenNZdzJWSENTZTJCQT09Cg==",
-      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.9_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTeVlYUlJoUVZpSG84TkwySGRVOWl3REF2Zkc5MDhEaVNjeHp5c20wSUtVL3BlUGRDK3l0Y1pqZldTVmNiVWt4NEJmSXZnamh2SFI2U0F4NzVOT1NEOGN2K0Y2SHlCYXdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTc2MTYzCWZpbGU6RFVTVExJTkVfMS4wLjEwX3g2NC1zZXR1cC5leGUKRWUyOVZwQ0ViWnp0NlYwdUdYcmdpUCswZ2NrcHZVOVNKZFlGUEZ6WTBjZjAvcGtxQm1EUnl6b2hackxLYklVZStNM0EyYUFyYzZiQjVKZlVNb3R2QXc9PQo=",
+      "url": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.10_x64-setup.exe"
     }
   },
   "mirrors": {
-    "github": "https://github.com/coreystndr/dustline/releases/latest/download/DUSTLINE_1.0.9_x64-setup.exe",
-    "vercel": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.9_x64-setup.exe"
+    "github": "https://github.com/coreystndr/dustline/releases/latest/download/DUSTLINE_1.0.10_x64-setup.exe",
+    "vercel": "https://website-red-six-83.vercel.app/downloads/DUSTLINE_1.0.10_x64-setup.exe"
   },
   "history": [
+    {
+      "version": "1.0.9",
+      "notes": "Matchmaking fix: staggered create by Steam ID, multi-strategy lobby list union, aggressive dual-lobby merge + requeue so two searchers find each other."
+    },
     {
       "version": "1.0.8",
       "notes": "Multiplayer fix: wait for players (1/2), reliable P2 join (GameStart retry + state bootstrap), Best of 5 (first to 3), round-end overlay clears between rounds."
